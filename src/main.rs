@@ -1,7 +1,7 @@
 use gfx::{self, *};
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
-use ggez::input::keyboard::{ KeyCode, KeyMods, is_key_pressed };
+use ggez::input::keyboard::{is_key_pressed, KeyCode, KeyMods};
 use ggez::{Context, ContextBuilder, GameResult};
 
 fn main() {
@@ -19,33 +19,45 @@ fn main() {
 }
 
 gfx_defines! {
-    constant Dim {
-        rate: f32 = "u_Rate",
+    constant SandShaderConsts {
+        t: f32 = "t",
+        dpi: f32 = "dpi",
+        resolution: [f32; 2] = "resolution",
+        is_snapshot: bool = "isSnapshot",
     }
 }
 
-type SandShader = graphics::Shader<Dim>;
+type SandShader = graphics::Shader<SandShaderConsts>;
 
 struct MyGame {
     universe: sands::Universe,
     sand_shader: Option<SandShader>,
+    sand_shader_consts: SandShaderConsts,
 }
 
 impl MyGame {
     pub fn new(ctx: &mut Context) -> MyGame {
-        MyGame {
+        let mut game = MyGame {
             universe: sands::Universe::new(200, 200),
-            sand_shader: Self::load_sand_shader(ctx),
-        }
+            sand_shader: None,
+            sand_shader_consts: SandShaderConsts {
+                t: 0.0,
+                dpi: 1.0,
+                resolution: [1.0, 1.0],
+                is_snapshot: false,
+            },
+        };
+        game.reload_resources(ctx);
+        game
     }
 
-    fn load_sand_shader(ctx: &mut Context) -> Option<SandShader> {
+    fn load_sand_shader(ctx: &mut Context, consts: SandShaderConsts) -> Option<SandShader> {
         match graphics::Shader::new(
             ctx,
             "/sand_shader.glslv",
             "/sand_shader.glslf",
-            Dim { rate: 0.0 },
-            "sand_shader",
+            consts,
+            "SandShaderConsts",
             None,
         ) {
             Ok(shader) => Some(shader),
@@ -57,7 +69,12 @@ impl MyGame {
     }
 
     fn reload_resources(&mut self, ctx: &mut Context) {
-        self.sand_shader = Self::load_sand_shader(ctx);
+        self.sand_shader = Self::load_sand_shader(ctx, self.sand_shader_consts);
+        println!("reload_resources done");
+    }
+
+    fn reset_universe(&mut self) {
+        self.universe = sands::Universe::new(200, 200);
     }
 }
 
@@ -69,7 +86,7 @@ impl EventHandler for MyGame {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
-        
+
         if is_key_pressed(ctx, KeyCode::B) {
             self.draw_black_pixels(ctx)?;
         } else if is_key_pressed(ctx, KeyCode::N) {
@@ -87,12 +104,13 @@ impl EventHandler for MyGame {
         &mut self,
         ctx: &mut Context,
         keycode: KeyCode,
-        _keymods: KeyMods,
+        keymods: KeyMods,
         _repeat: bool,
     ) {
         match keycode {
             KeyCode::Escape => ggez::event::quit(ctx),
-            KeyCode::R => self.reload_resources(ctx),
+            KeyCode::R if keymods == KeyMods::NONE => self.reload_resources(ctx),
+            KeyCode::R if keymods == KeyMods::SHIFT => self.reset_universe(),
             _ => (),
         }
     }
@@ -102,6 +120,7 @@ impl MyGame {
     fn draw_with_shader(&mut self, ctx: &mut Context) -> GameResult<()> {
         if let Some(ref shader) = self.sand_shader {
             let _lock = graphics::use_shader(ctx, shader);
+            shader.send(ctx, self.sand_shader_consts)?;
             self.draw_raw(ctx)
         } else {
             self.draw_raw(ctx)

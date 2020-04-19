@@ -249,8 +249,8 @@ impl Universe {
             .collect();
         let winds: Vec<Wind> = (0..width * height)
             .map(|_i| Wind {
-                dx: 0,
-                dy: 0,
+                dx: 126,
+                dy: 126,
                 pressure: 0,
                 density: 0,
             })
