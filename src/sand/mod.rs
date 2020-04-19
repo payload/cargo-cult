@@ -1,7 +1,7 @@
 mod species;
 mod utils;
 
-use species::Species;
+pub use species::Species;
 use std::collections::VecDeque;
 
 #[repr(C)]
@@ -16,7 +16,7 @@ pub struct Wind {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {
-    species: Species,
+    pub species: Species,
     ra: u8,
     rb: u8,
     clock: u8,
@@ -177,16 +177,16 @@ impl Universe {
         self.height
     }
 
-    pub fn cells(&self) -> *const Cell {
-        self.cells.as_ptr()
+    pub fn cells(&self) -> &[Cell] {
+        &self.cells
     }
 
-    pub fn winds(&self) -> *const Wind {
-        self.winds.as_ptr()
+    pub fn winds(&self) -> &[Wind] {
+        &self.winds
     }
 
-    pub fn burns(&self) -> *const Wind {
-        self.burns.as_ptr()
+    pub fn burns(&self) -> &[Wind] {
+        &self.burns
     }
 
     pub fn paint(&mut self, x: i32, y: i32, size: i32, species: Species) {
