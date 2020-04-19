@@ -1,5 +1,6 @@
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
+use ggez::input::keyboard;
 use ggez::{Context, ContextBuilder, GameResult};
 
 fn main() {
@@ -35,12 +36,27 @@ impl EventHandler for MyGame {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
-        self.draw_black_pixels(ctx)?;
+        if keyboard::is_key_pressed(ctx, keyboard::KeyCode::B) {
+            self.draw_black_pixels(ctx)?;
+        } else {
+            self.draw_raw(ctx)?;
+        }
         graphics::present(ctx)
     }
 }
 
 impl MyGame {
+    fn draw_raw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let u = &self.universe;
+        let width = u.width() as u16;
+        let height = u.height() as u16;
+        let cells = u.cells();
+        let rgba =
+            unsafe { std::slice::from_raw_parts(cells.as_ptr() as *const u8, cells.len() * 4) };
+        let image = graphics::Image::from_rgba8(ctx, width, height, rgba)?;
+        graphics::draw(ctx, &image, graphics::DrawParam::default())
+    }
+
     fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {
         let mut builder = graphics::MeshBuilder::new();
 
