@@ -7,6 +7,13 @@ use ggez::{Context, ContextBuilder, GameResult};
 fn main() {
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .add_resource_path("resources")
+        .window_setup(ggez::conf::WindowSetup {
+            icon: "".into(),
+            samples: ggez::conf::NumSamples::Zero,
+            srgb: false,
+            title: "title".into(),
+            vsync: true,
+        })
         .build()
         .unwrap();
 
@@ -38,7 +45,7 @@ struct MyGame {
 impl MyGame {
     pub fn new(ctx: &mut Context) -> MyGame {
         let mut game = MyGame {
-            universe: sands::Universe::new(200, 200),
+            universe: Self::default_universe(),
             sand_shader: None,
             sand_shader_consts: SandShaderConsts {
                 t: 0.0,
@@ -74,13 +81,25 @@ impl MyGame {
     }
 
     fn reset_universe(&mut self) {
-        self.universe = sands::Universe::new(200, 200);
+        self.universe = Self::default_universe();
+    }
+
+    fn default_universe() -> sands::Universe {
+        let mut universe = sands::Universe::new(100, 100);
+        universe.paint(5, 5, 10, sands::Species::Wall);
+        universe
     }
 }
 
 impl EventHandler for MyGame {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         self.universe.tick();
+
+        self.sand_shader_consts = SandShaderConsts {
+            t: ggez::timer::ticks(ctx) as f32,
+            ..self.sand_shader_consts
+        };
+
         Ok(())
     }
 
@@ -111,6 +130,7 @@ impl EventHandler for MyGame {
             KeyCode::Escape => ggez::event::quit(ctx),
             KeyCode::R if keymods == KeyMods::NONE => self.reload_resources(ctx),
             KeyCode::R if keymods == KeyMods::SHIFT => self.reset_universe(),
+            KeyCode::I => println!("{:?}", self.universe.cells().last().unwrap().species),
             _ => (),
         }
     }
@@ -132,10 +152,17 @@ impl MyGame {
         let width = u.width() as u16;
         let height = u.height() as u16;
         let cells = u.cells();
+
         let rgba =
             unsafe { std::slice::from_raw_parts(cells.as_ptr() as *const u8, cells.len() * 4) };
-        let image = graphics::Image::from_rgba8(ctx, width, height, rgba)?;
-        graphics::draw(ctx, &image, graphics::DrawParam::default())
+        let mut image = graphics::Image::from_rgba8(ctx, width, height, rgba)?;
+        image.set_filter(graphics::FilterMode::Linear);
+
+        graphics::draw(
+            ctx,
+            &image,
+            graphics::DrawParam::default().scale([4.0, 4.0]),
+        )
     }
 
     fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {

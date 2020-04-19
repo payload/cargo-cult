@@ -216,18 +216,15 @@ highp float random(vec2 co)
 
 void main() {
   vec3 color;
-  //   float r = abs(sin(t / 25.));
-  //   if (length(v_Uv) < r && length(v_Uv) > r - 0.1) {
-  // color = hsv2rgb(vec3(sin(t * 0.01), 0.5, 0.5));
-
-  vec2 textCoord = (v_Uv * vec2(0.5, -0.5)) + vec2(0.5);
-
-  vec4 data = texture(t_Texture, v_Uv);
-  int type = int((data.g * 255.) + 0.1);
+  //vec2 textCoord = floor(v_Uv * 100.0 + vec2(0.5)) / 100.0;
+  vec2 ts = textureSize(t_Texture, 0);
+  vec2 textCoord = (floor(v_Uv * ts) + vec2(0.5)) / ts;
+  vec4 data = texture(t_Texture, textCoord);
+  int type = int(data.r * 255.0 + 0.1);
   float hue = 0.0;
   float saturation = 0.6;
-  float lightness = 0.3; // 0.3 + data.g * 0.5;
-  float noise = snoise3(vec3(floor(v_Uv * resolution / dpi), t * 0.05));
+  float lightness = 0.3 + data.g * 0.5;
+  float noise = snoise3(vec3(textCoord, t * 0.05));
   float a = 1.0;
 
   if (type == 0) { // empty
@@ -319,14 +316,8 @@ void main() {
     lightness = 0.9 * (data.g + 0.9);
   }
   if (isSnapshot == false) {
-    lightness *= (0.975 + snoise2(floor(v_Uv * resolution / dpi)) * 0.025);
+    lightness *= (0.975 + snoise2(textCoord * 0.025));
   }
   color = hsv2rgb(vec3(hue, saturation, lightness));
   Target0 = vec4(color, a);
-  //Target0 = texture(t_Texture, v_Uv) * v_Color;
-}
-
-
-void xmain() {
-    Target0 = texture(t_Texture, v_Uv) * v_Color;
 }
