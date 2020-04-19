@@ -1,3 +1,4 @@
+use gfx::{self, *};
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
 use ggez::input::keyboard;
@@ -16,14 +17,22 @@ fn main() {
     }
 }
 
+gfx_defines! {
+    constant Dim {
+        rage: f32 = "u_Rate",
+    }
+}
+
 struct MyGame {
     universe: sands::Universe,
+    sand_shader: Option<graphics::Shader<Dim>>,
 }
 
 impl MyGame {
     pub fn new(_ctx: &mut Context) -> MyGame {
         MyGame {
             universe: sands::Universe::new(200, 200),
+            sand_shader: None,
         }
     }
 }
@@ -36,16 +45,33 @@ impl EventHandler for MyGame {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
+
         if keyboard::is_key_pressed(ctx, keyboard::KeyCode::B) {
             self.draw_black_pixels(ctx)?;
-        } else {
+        }
+        else if keyboard::is_key_pressed(ctx, keyboard::KeyCode::R) {
             self.draw_raw(ctx)?;
         }
+        else if keyboard::is_key_pressed(ctx, keyboard::KeyCode::S) {
+            self.draw_with_shader(ctx)?;
+        } else {
+            self.draw_with_shader(ctx)?;
+        }
+
         graphics::present(ctx)
     }
 }
 
 impl MyGame {
+    fn draw_with_shader(&mut self, ctx: &mut Context) -> GameResult<()> {
+        if let Some(ref shader) = self.sand_shader {
+            let _lock = graphics::use_shader(ctx, shader);
+            self.draw_raw(ctx)
+        } else {
+            self.draw_raw(ctx)
+        }
+    }
+
     fn draw_raw(&mut self, ctx: &mut Context) -> GameResult<()> {
         let u = &self.universe;
         let width = u.width() as u16;
