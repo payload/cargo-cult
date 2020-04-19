@@ -28,8 +28,6 @@ fn main() {
 gfx_defines! {
     constant SandShaderConsts {
         t: f32 = "t",
-        dpi: f32 = "dpi",
-        resolution: [f32; 2] = "resolution",
         is_snapshot: bool = "isSnapshot",
     }
 }
@@ -40,6 +38,9 @@ struct MyGame {
     universe: sands::Universe,
     sand_shader: Option<SandShader>,
     sand_shader_consts: SandShaderConsts,
+    paint_size: i32,
+    paint_species: sands::Species,
+    render_scale: f32,
 }
 
 impl MyGame {
@@ -49,10 +50,11 @@ impl MyGame {
             sand_shader: None,
             sand_shader_consts: SandShaderConsts {
                 t: 0.0,
-                dpi: 1.0,
-                resolution: [1.0, 1.0],
                 is_snapshot: false,
             },
+            paint_size: 10,
+            paint_species: sands::Species::Water,
+            render_scale: 4.0,
         };
         game.reload_resources(ctx);
         game
@@ -126,12 +128,49 @@ impl EventHandler for MyGame {
         keymods: KeyMods,
         _repeat: bool,
     ) {
+        use sands::Species::*;
+        let shift = keymods == KeyMods::SHIFT;
         match keycode {
             KeyCode::Escape => ggez::event::quit(ctx),
-            KeyCode::R if keymods == KeyMods::NONE => self.reload_resources(ctx),
-            KeyCode::R if keymods == KeyMods::SHIFT => self.reset_universe(),
-            KeyCode::I => println!("{:?}", self.universe.cells().last().unwrap().species),
+            KeyCode::R if shift => self.reset_universe(),
+            KeyCode::R => self.reload_resources(ctx),
+
+            KeyCode::Add => self.render_scale = self.render_scale + 1.0,
+            KeyCode::Subtract => self.render_scale = (self.render_scale - 1.0).max(1.0),
+
+            KeyCode::Key1 if shift => self.paint_species = Plant,
+            KeyCode::Key2 if shift => self.paint_species = Acid,
+            KeyCode::Key3 if shift => self.paint_species = Stone,
+            KeyCode::Key4 if shift => self.paint_species = Dust,
+            KeyCode::Key5 if shift => self.paint_species = Mite,
+            KeyCode::Key6 if shift => self.paint_species = Oil,
+            KeyCode::Key7 if shift => self.paint_species = Rocket,
+            KeyCode::Key8 if shift => self.paint_species = Fungus,
+            KeyCode::Key9 if shift => self.paint_species = Seed,
+
+            KeyCode::Key0 => self.paint_species = Empty,
+            KeyCode::Key1 => self.paint_species = Wall,
+            KeyCode::Key2 => self.paint_species = Sand,
+            KeyCode::Key3 => self.paint_species = Water,
+            KeyCode::Key4 => self.paint_species = Gas,
+            KeyCode::Key5 => self.paint_species = Cloner,
+            KeyCode::Key6 => self.paint_species = Fire,
+            KeyCode::Key7 => self.paint_species = Wood,
+            KeyCode::Key8 => self.paint_species = Lava,
+            KeyCode::Key9 => self.paint_species = Ice,
+
             _ => (),
+        }
+    }
+
+    fn mouse_motion_event(&mut self, ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
+        if ggez::input::mouse::button_pressed(ctx, ggez::input::mouse::MouseButton::Left) {
+            self.universe.paint(
+                (x / self.render_scale) as i32,
+                (y / self.render_scale) as i32,
+                self.paint_size,
+                self.paint_species,
+            );
         }
     }
 }
@@ -161,7 +200,7 @@ impl MyGame {
         graphics::draw(
             ctx,
             &image,
-            graphics::DrawParam::default().scale([4.0, 4.0]),
+            graphics::DrawParam::default().scale([self.render_scale, self.render_scale]),
         )
     }
 

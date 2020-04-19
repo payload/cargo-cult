@@ -489,7 +489,7 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
 pub fn update_fire(cell: Cell, mut api: SandApi) {
     let ra = cell.ra;
     let mut degraded = cell.clone();
-    degraded.ra = ra - (2 + rand_dir()) as u8;
+    degraded.ra = ra.wrapping_sub((2 + rand_dir()) as u8);
 
     let (dx, dy) = rand_vec();
 

@@ -20,8 +20,6 @@ precision highp float;
 
 layout (std140) uniform SandShaderConsts {
     uniform float t;
-    uniform float dpi;
-    uniform vec2 resolution;
     uniform bool isSnapshot;
 };
 
