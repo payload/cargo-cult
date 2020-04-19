@@ -1,4 +1,4 @@
-use rand::{ thread_rng, Rng };
+use rand::{thread_rng, Rng};
 
 pub fn rand_int(n: i32) -> i32 {
     thread_rng().gen_range(0, n)
@@ -88,7 +88,6 @@ pub fn join_dy_dx(dx: i32, dy: i32) -> u8 {
 }
 
 pub fn split_dy_dx(s: u8) -> (i32, i32) {
-
     let s: i32 = s as i32;
 
     let dx: i32 = (s / 3) - 1;
