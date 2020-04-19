@@ -1,11 +1,12 @@
 use gfx::{self, *};
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
-use ggez::input::keyboard;
+use ggez::input::keyboard::{ KeyCode, KeyMods, is_key_pressed };
 use ggez::{Context, ContextBuilder, GameResult};
 
 fn main() {
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
+        .add_resource_path("resources")
         .build()
         .unwrap();
 
@@ -19,21 +20,44 @@ fn main() {
 
 gfx_defines! {
     constant Dim {
-        rage: f32 = "u_Rate",
+        rate: f32 = "u_Rate",
     }
 }
 
+type SandShader = graphics::Shader<Dim>;
+
 struct MyGame {
     universe: sands::Universe,
-    sand_shader: Option<graphics::Shader<Dim>>,
+    sand_shader: Option<SandShader>,
 }
 
 impl MyGame {
-    pub fn new(_ctx: &mut Context) -> MyGame {
+    pub fn new(ctx: &mut Context) -> MyGame {
         MyGame {
             universe: sands::Universe::new(200, 200),
-            sand_shader: None,
+            sand_shader: Self::load_sand_shader(ctx),
         }
+    }
+
+    fn load_sand_shader(ctx: &mut Context) -> Option<SandShader> {
+        match graphics::Shader::new(
+            ctx,
+            "/sand_shader.glslv",
+            "/sand_shader.glslf",
+            Dim { rate: 0.0 },
+            "sand_shader",
+            None,
+        ) {
+            Ok(shader) => Some(shader),
+            Err(err) => {
+                dbg!(err);
+                None
+            }
+        }
+    }
+
+    fn reload_resources(&mut self, ctx: &mut Context) {
+        self.sand_shader = Self::load_sand_shader(ctx);
     }
 }
 
@@ -45,20 +69,32 @@ impl EventHandler for MyGame {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
-
-        if keyboard::is_key_pressed(ctx, keyboard::KeyCode::B) {
+        
+        if is_key_pressed(ctx, KeyCode::B) {
             self.draw_black_pixels(ctx)?;
-        }
-        else if keyboard::is_key_pressed(ctx, keyboard::KeyCode::R) {
+        } else if is_key_pressed(ctx, KeyCode::N) {
             self.draw_raw(ctx)?;
-        }
-        else if keyboard::is_key_pressed(ctx, keyboard::KeyCode::S) {
+        } else if is_key_pressed(ctx, KeyCode::M) {
             self.draw_with_shader(ctx)?;
         } else {
             self.draw_with_shader(ctx)?;
         }
 
         graphics::present(ctx)
+    }
+
+    fn key_down_event(
+        &mut self,
+        ctx: &mut Context,
+        keycode: KeyCode,
+        _keymods: KeyMods,
+        _repeat: bool,
+    ) {
+        match keycode {
+            KeyCode::Escape => ggez::event::quit(ctx),
+            KeyCode::R => self.reload_resources(ctx),
+            _ => (),
+        }
     }
 }
 
