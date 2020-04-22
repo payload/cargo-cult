@@ -5,6 +5,8 @@ use ggez::graphics;
 use ggez::input::keyboard::{is_key_pressed, KeyCode, KeyMods};
 use ggez::{Context, ContextBuilder, GameResult};
 
+use ggez_sandspiel as sands;
+
 fn main() {
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .add_resource_path("resources")

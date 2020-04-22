@@ -1,10 +1,9 @@
 [package]
-name = "sands"
+name = "ggez-sandspiel"
 version = "0.1.0"
 authors = ["Gilbert Röhrbein"]
 edition = "2018"
 license = "MIT"
-license-file = "LICENSE"
 
 [dependencies]
 rand = "0.7.3"
@@ -12,3 +11,4 @@ gfx = "0.18.2"
 
 [dependencies.ggez]
 version = "0.5.1"
+default-features = false
