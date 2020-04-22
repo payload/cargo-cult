@@ -1,0 +1,12 @@
+[package]
+name = "sands"
+version = "0.1.0"
+authors = ["Gilbert Röhrbein"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.3"
+gfx = "0.18.2"
+
+[dependencies.ggez]
+version = "0.5.1"
