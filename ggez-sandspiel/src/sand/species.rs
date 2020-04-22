@@ -1,3 +1,4 @@
+// Copyright (c) 2020 Max Bittker, Gilbert Röhrbein
 use super::utils::*;
 use super::{Cell, SandApi, Wind, EMPTY_CELL};
 

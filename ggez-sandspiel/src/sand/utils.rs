@@ -1,3 +1,4 @@
+// Copyright (c) 2020 Max Bittker, Gilbert Röhrbein
 use rand::{thread_rng, Rng};
 
 pub fn rand_int(n: i32) -> i32 {

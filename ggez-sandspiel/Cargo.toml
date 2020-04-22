@@ -3,6 +3,8 @@ name = "sands"
 version = "0.1.0"
 authors = ["Gilbert Röhrbein"]
 edition = "2018"
+license = "MIT"
+license-file = "LICENSE"
 
 [dependencies]
 rand = "0.7.3"

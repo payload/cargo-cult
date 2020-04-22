@@ -1,3 +1,4 @@
+// Copyright (c) 2020 Gilbert Röhrbein
 use gfx::{self, *};
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
