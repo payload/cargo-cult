@@ -35,7 +35,7 @@ gfx_defines! {
 type SandShader = graphics::Shader<SandShaderConsts>;
 
 struct MyGame {
-    universe: sands::Universe,
+    universe: Option<sands::Universe>,
     sand_shader: Option<SandShader>,
     sand_shader_consts: SandShaderConsts,
     paint_size: i32,
@@ -46,7 +46,7 @@ struct MyGame {
 impl MyGame {
     pub fn new(ctx: &mut Context) -> MyGame {
         let mut game = MyGame {
-            universe: Self::default_universe(),
+            universe: None,
             sand_shader: None,
             sand_shader_consts: SandShaderConsts {
                 t: 0.0,
@@ -56,6 +56,8 @@ impl MyGame {
             paint_species: sands::Species::Water,
             render_scale: 4.0,
         };
+
+        game.universe = game.create_universe(ctx);
         game.reload_resources(ctx);
         game
     }
@@ -82,20 +84,20 @@ impl MyGame {
         println!("reload_resources done");
     }
 
-    fn reset_universe(&mut self) {
-        self.universe = Self::default_universe();
-    }
-
-    fn default_universe() -> sands::Universe {
-        let mut universe = sands::Universe::new(100, 100);
-        universe.paint(5, 5, 10, sands::Species::Wall);
-        universe
+    fn create_universe(&self, ctx: &mut Context) -> Option<sands::Universe> {
+        let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
+        Some(sands::Universe::new(
+            (size.width as f32 / self.render_scale) as i32,
+            (size.height as f32 / self.render_scale) as i32,
+        ))
     }
 }
 
 impl EventHandler for MyGame {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        self.universe.tick();
+        if let Some(ref mut u) = self.universe {
+            u.tick();
+        }
 
         self.sand_shader_consts = SandShaderConsts {
             t: ggez::timer::ticks(ctx) as f32,
@@ -118,6 +120,10 @@ impl EventHandler for MyGame {
             self.draw_with_shader(ctx)?;
         }
 
+        use graphics::BLACK;
+        let text = graphics::Text::new(format!("{:?}", self.paint_species));
+        graphics::draw(ctx, &text, ([0.0, 0.0], BLACK))?;
+
         graphics::present(ctx)
     }
 
@@ -132,7 +138,7 @@ impl EventHandler for MyGame {
         let shift = keymods == KeyMods::SHIFT;
         match keycode {
             KeyCode::Escape => ggez::event::quit(ctx),
-            KeyCode::R if shift => self.reset_universe(),
+            KeyCode::R if shift => self.universe = self.create_universe(ctx),
             KeyCode::R => self.reload_resources(ctx),
 
             KeyCode::Add => self.render_scale = self.render_scale + 1.0,
@@ -165,13 +171,19 @@ impl EventHandler for MyGame {
 
     fn mouse_motion_event(&mut self, ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
         if ggez::input::mouse::button_pressed(ctx, ggez::input::mouse::MouseButton::Left) {
-            self.universe.paint(
-                (x / self.render_scale) as i32,
-                (y / self.render_scale) as i32,
-                self.paint_size,
-                self.paint_species,
-            );
+            if let Some(ref mut universe) = self.universe {
+                universe.paint(
+                    (x / self.render_scale) as i32,
+                    (y / self.render_scale) as i32,
+                    self.paint_size,
+                    self.paint_species,
+                );
+            }
         }
+    }
+
+    fn resize_event(&mut self, ctx: &mut Context, _width: f32, _height: f32) {
+        self.universe = self.create_universe(ctx);
     }
 }
 
@@ -187,32 +199,31 @@ impl MyGame {
     }
 
     fn draw_raw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        let u = &self.universe;
-        let width = u.width() as u16;
-        let height = u.height() as u16;
-        let cells = u.cells();
+        if let Some(ref u) = self.universe {
+            let width = u.width() as u16;
+            let height = u.height() as u16;
+            let cells = u.cells();
 
-        let rgba =
-            unsafe { std::slice::from_raw_parts(cells.as_ptr() as *const u8, cells.len() * 4) };
-        let mut image = graphics::Image::from_rgba8(ctx, width, height, rgba)?;
-        image.set_filter(graphics::FilterMode::Linear);
+            let rgba =
+                unsafe { std::slice::from_raw_parts(cells.as_ptr() as *const u8, cells.len() * 4) };
+            let mut image = graphics::Image::from_rgba8(ctx, width, height, rgba)?;
+            image.set_filter(graphics::FilterMode::Linear);
 
-        graphics::draw(
-            ctx,
-            &image,
-            graphics::DrawParam::default().scale([self.render_scale, self.render_scale]),
-        )
+            graphics::draw(
+                ctx,
+                &image,
+                graphics::DrawParam::default().scale([self.render_scale, self.render_scale]),
+            )?;
+        }
+        Ok(())
     }
 
     fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {
         let mut builder = graphics::MeshBuilder::new();
 
-        let u = &self.universe;
-        let w = u.width();
-        u.cells()
-            .iter()
-            .enumerate()
-            .for_each(|(i, c): (usize, &sands::Cell)| {
+        if let Some(ref u) = self.universe {
+            let w = u.width();
+            for (i, c) in u.cells().iter().enumerate() {
                 if c.species != sands::Species::Empty {
                     let x = (i % w as usize) as i32;
                     let y = (i / w as usize) as i32;
@@ -222,7 +233,8 @@ impl MyGame {
                         (0.0, 0.0, 0.0, 1.0).into(),
                     );
                 }
-            });
+            }
+        }
 
         let mesh = builder.build(ctx)?;
         graphics::draw(ctx, &mesh, graphics::DrawParam::default())
