@@ -623,6 +623,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ggez-kruemel"
+version = "0.1.0"
+dependencies = [
+ "gfx",
+ "ggez",
+ "rand 0.7.3",
+]
+
+[[package]]
 name = "ggez-sandspiel"
 version = "0.1.0"
 dependencies = [
