@@ -101,6 +101,7 @@ impl Cells {
         self.cells[idx] = match id {
             Empty => Cell::empty(),
             Sand => Cell::sand(),
+            Water => Cell::water(),
         }
     }
 
@@ -110,6 +111,7 @@ impl Cells {
         match id {
             Empty => {},
             Sand => self.update_sand(x, y, idx),
+            Water => self.update_water(x, y, idx),
         }
     }
 
@@ -134,6 +136,28 @@ impl Cells {
             }
         }
     }
+
+    fn update_water(&mut self, x: X, y: Y, idx: usize) {
+        let d = self.idx(x, y + 1);
+        let dl = self.idx(x - 1, y + 1);
+        let dr = self.idx(x + 1, y + 1);
+        let d_free = y + 1 < self.height as i32;
+        let l_free = x > 0;
+        let r_free = x + 1 < self.width as i32;
+        
+        if d_free {
+            if self.cells[d].id == Empty {
+                self.cells[idx].id = Empty;
+                self.cells[d].id = Water;
+            } else if l_free && self.cells[dl].id == Empty {
+                self.cells[idx].id = Empty;
+                self.cells[dl].id = Water;
+            } else if r_free && self.cells[dr].id == Empty {
+                self.cells[idx].id = Empty;
+                self.cells[dr].id = Water;
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -150,11 +174,13 @@ pub struct Cell {
 impl Cell {
     pub fn empty() -> Self { Self { vx: 0.0, vy: 0.0, time: 0, touched: 0, id: CellId::Empty } }
     pub fn sand() -> Self { Self { id: CellId::Sand, ..Self::empty() } }
+    pub fn water() -> Self { Self { id: CellId::Water, ..Self::empty() } }
 
     pub fn char(&self) -> char {
         match self.id {
             Empty => ' ',
             Sand => '.',
+            Water => '~',
         }
     }
 }
@@ -164,6 +190,7 @@ impl Cell {
 pub enum CellId {
     Empty = 0,
     Sand = 1,
+    Water = 2,
 }
 
 struct MyGame {
@@ -185,11 +212,20 @@ impl MyGame {
 impl EventHandler for MyGame {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         use ggez::input::mouse::*;
+        let p = position(ctx);
+        let x = p.x as i32 / 4;
+        let y = p.y as i32 / 4;
+
         if button_pressed(ctx, MouseButton::Left) {
-            let p = position(ctx);
-            let x = p.x as i32 / 4;
-            let y = p.y as i32 / 4;
             self.cells.paint(x, y, Sand);
+            self.cells.paint(x, y+1, Sand);
+            self.cells.paint(x+1, y, Sand);
+            self.cells.paint(x+1, y+1, Sand);
+        } else if button_pressed(ctx, MouseButton::Right) {
+            self.cells.paint(x, y, Water);
+            self.cells.paint(x, y+1, Water);
+            self.cells.paint(x+1, y, Water);
+            self.cells.paint(x+1, y+1, Water);
         }
 
         self.cells.tick();
@@ -222,18 +258,21 @@ impl EventHandler for MyGame {
 impl MyGame {
     fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {
         let mut builder = graphics::MeshBuilder::new();
+        
+        let mut draw = |x, y, c: (f32, f32, f32, f32)| {
+            builder.rectangle(
+                graphics::DrawMode::fill(),
+                graphics::Rect::new_i32(x * 4, y * 4, 4, 4),
+                c.into(),
+            );
+        };
 
         for y in 0..self.cells.h() {
             for x in 0..self.cells.w() {
                 match self.cells.cell(x, y).id {
                     Empty => {},
-                    Sand => {
-                        builder.rectangle(
-                            graphics::DrawMode::fill(),
-                            graphics::Rect::new_i32(x * 4, y * 4, 4, 4),
-                            (0.0, 0.0, 0.0, 1.0).into(),
-                        );
-                    },
+                    Sand => draw(x, y, (1.0, 0.8, 0.0, 1.0)),
+                    Water => draw(x, y, (0.0, 0.0, 1.0, 1.0)),
                 }
             }
         }
