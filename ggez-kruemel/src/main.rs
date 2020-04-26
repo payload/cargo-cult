@@ -136,44 +136,60 @@ impl Cells {
         let l_free = x > 0;
         let r_free = x + 1 < self.width as i32;
             
-        if d_free {
-            let d = self.c(id);
-            let dl = self.c(idl);
-            let dr = self.c(idr);
-
-            if d.touched == 0 && d.id == Empty || d.id == Water {
-                self.cells[idx].id = d.id;
-                self.cells[id].id = Sand;
-            } else if l_free && (dl.id == Empty || dl.id == Water) {
-                self.cells[idx].id = dl.id;
-                self.cells[idl].id = Sand;
-            } else if r_free && (dr.id == Empty || dr.id == Water) {
-                self.cells[idx].id = dr.id;
-                self.cells[idr].id = Sand;
-            }
+        if d_free && (self.c(id).id == Empty || self.c(id).id == Water) {
+            self.cells[idx].id = self.c(id).id;
+            self.cells[id].id = Sand;
+        } else if d_free && l_free && (self.c(idl).id == Empty || self.c(idl).id == Water) {
+            self.cells[idx].id = self.c(idl).id;
+            self.cells[idl].id = Sand;
+        } else if d_free && r_free && (self.c(idr).id == Empty || self.c(idr).id == Water) {
+            self.cells[idx].id = self.c(idr).id;
+            self.cells[idr].id = Sand;
         }
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) {
-        let d = self.idx(x, y + 1);
-        let dl = self.idx(x - 1, y + 1);
-        let dr = self.idx(x + 1, y + 1);
+        let id = self.idx(x, y + 1);
+        let idl = self.idx(x - 1, y + 1);
+        let idr = self.idx(x + 1, y + 1);
         let d_free = y + 1 < self.height as i32;
         let l_free = x > 0;
         let r_free = x + 1 < self.width as i32;
-        
-        if d_free {
-            if self.cells[d].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[d].id = Water;
-            } else if l_free && self.cells[dl].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[dl].id = Water;
-            } else if r_free && self.cells[dr].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[dr].id = Water;
-            }
+            
+        if d_free && self.c(id).id == Empty {
+            self.cells[idx].id = self.c(id).id;
+            self.cells[id].id = Water;
+        } else if d_free && l_free && self.c(idl).id == Empty {
+            self.cells[idx].id = self.c(idl).id;
+            self.cells[idl].id = Water;
+        } else if d_free && r_free && self.c(idr).id == Empty {
+            self.cells[idx].id = self.c(idr).id;
+            self.cells[idr].id = Water;
+        } else if self.try_spread(x, y) {
         }
+    }
+
+    fn try_spread(&mut self, x: X, y: Y) -> bool {
+        let idx = self.idx(x, y);
+        let left = x > 0 && self.is_empty(x - 1, y);
+        let right = x + 1 < self.w() && self.is_empty(x + 1, y);
+        if (left && right && rand::random::<bool>()) || (left && !right) {
+            self.swap(idx, x - 1, y);
+        } else if right {
+            self.swap(idx, x + 1, y);
+        }
+        left || right
+    }
+
+    fn swap(&mut self, idx: usize, x: X, y: Y) {
+        let my_id = self.cells[idx].id;
+        let other = self.idx(x, y);
+        self.cells[idx].id = self.cells[other].id;
+        self.cells[other].id = my_id;
+    }
+
+    fn is_empty(&self, x: X, y: Y) -> bool {
+        self.in_bounds(x, y) && self.cell(x, y).id == Empty
     }
 }
 
