@@ -77,6 +77,20 @@ impl Cells {
                 self.update(left_right(x), y);
             }
         }
+        
+        let mut count = [0; 256];
+        for y in 0..h {
+            for x in 0..w {
+                let id = self.cell_id(x, y) as usize;
+                count[id] += 1;
+            }
+        }
+        for (id, n) in count.iter().copied().enumerate() {
+            if n > 0 {
+                // println!("{:?} {}", id, n);
+            }
+        }
+
         self.tick_n += 1;
     }
 
@@ -107,6 +121,11 @@ impl Cells {
     fn c(&self, idx: usize) -> &Cell { &self.cells[idx] }
     fn c_copy(&self, idx: usize) -> Cell { self.cells[idx] }
 
+    fn checked_idx(&self, x: X, y: Y) -> Option<usize> {
+        let idx = self.idx(x, y);
+        if idx >= 0 && idx < self.cells.len() { Some(idx) } else { None }
+    }
+
     pub fn paint(&mut self, x: X, y: Y, id: CellId) {
         if self.in_bounds(x, y) {
             let idx = self.idx(x, y);
@@ -114,6 +133,7 @@ impl Cells {
                 Empty => Cell::empty(),
                 Sand => Cell::sand(),
                 Water => Cell::water(),
+                OutOfBounds => Cell::out_of_bounds(),
             }
         }
     }
@@ -125,60 +145,76 @@ impl Cells {
             Empty => {},
             Sand => self.update_sand(x, y, idx),
             Water => self.update_water(x, y, idx),
+            OutOfBounds => {},
+        }
+    }
+
+    fn cell_id(&self, x: X, y: Y) -> CellId {
+        if let Some(idx) = self.checked_idx(x, y) {
+            self.cells[idx].id
+        } else {
+            OutOfBounds
         }
     }
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize) {
-        let id = self.idx(x, y + 1);
-        let idl = self.idx(x - 1, y + 1);
-        let idr = self.idx(x + 1, y + 1);
-        let d_free = y + 1 < self.height as i32;
-        let l_free = x > 0;
-        let r_free = x + 1 < self.width as i32;
-            
-        if d_free && (self.c(id).id == Empty || self.c(id).id == Water) {
-            self.cells[idx].id = self.c(id).id;
-            self.cells[id].id = Sand;
-        } else if d_free && l_free && (self.c(idl).id == Empty || self.c(idl).id == Water) {
-            self.cells[idx].id = self.c(idl).id;
-            self.cells[idl].id = Sand;
-        } else if d_free && r_free && (self.c(idr).id == Empty || self.c(idr).id == Water) {
-            self.cells[idx].id = self.c(idr).id;
-            self.cells[idr].id = Sand;
+        let  d = self.cell_id(x, y + 1);
+        let dl = self.cell_id(x - 1, y + 1);
+        let dr = self.cell_id(x + 1, y + 1);
+        let r = |p| rand::random::<f32>() < p;
+
+        if d == Empty {
+            self.swap(idx, x, y + 1);
+        } else if d == Water && r(0.3) {
+            self.swap(idx, x, y + 1);
+        } else if dl == Empty {
+            self.swap(idx, x - 1, y + 1);
+        } else if dr == Empty {
+            self.swap(idx, x + 1, y + 1);
+        } else if dl == Water && r(0.3) {
+            self.swap(idx, x - 1, y + 1);
+        } else if dr == Water && r(0.3) {
+            self.swap(idx, x + 1, y + 1);
         }
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) {
-        let id = self.idx(x, y + 1);
-        let idl = self.idx(x - 1, y + 1);
-        let idr = self.idx(x + 1, y + 1);
-        let d_free = y + 1 < self.height as i32;
-        let l_free = x > 0;
-        let r_free = x + 1 < self.width as i32;
-            
-        if d_free && self.c(id).id == Empty {
-            self.cells[idx].id = self.c(id).id;
-            self.cells[id].id = Water;
-        } else if d_free && l_free && self.c(idl).id == Empty {
-            self.cells[idx].id = self.c(idl).id;
-            self.cells[idl].id = Water;
-        } else if d_free && r_free && self.c(idr).id == Empty {
-            self.cells[idx].id = self.c(idr).id;
-            self.cells[idr].id = Water;
-        } else if self.try_spread(x, y) {
+        let  d = self.cell_id(x, y + 1);
+        let dl = self.cell_id(x - 1, y + 1);
+        let dr = self.cell_id(x + 1, y + 1);
+
+        if d == Empty {
+            self.swap(idx, x, y + 1);
+        } else if dl == Empty {
+            self.swap(idx, x - 1, y + 1);
+        } else if dr == Empty {
+            self.swap(idx, x + 1, y + 1);
+        } else {
+            self.try_spread(x, y);
         }
     }
 
-    fn try_spread(&mut self, x: X, y: Y) -> bool {
-        let idx = self.idx(x, y);
-        let left = x > 0 && self.is_empty(x - 1, y);
-        let right = x + 1 < self.w() && self.is_empty(x + 1, y);
-        if (left && right && rand::random::<bool>()) || (left && !right) {
-            self.swap(idx, x - 1, y);
-        } else if right {
-            self.swap(idx, x + 1, y);
+    fn try_spread(&mut self, x: X, y: Y) {
+        if let Some((left, right)) = self.try_spread_get_offsets(x, y) {
+            let off = rand_abs_max(left, right);
+            self.swap(self.idx(x, y), x + off, y);
         }
-        left || right
+    }
+
+    fn try_spread_get_offsets(&self, x: X, y: Y) -> Option<(i32, i32)> {
+        let mut  left_off = 0;
+        let mut right_off = 0;
+        for off in 1..5 {
+            let  left = self.is_empty(x - off, y);
+            let right = self.is_empty(x + off, y);
+            if !left && !right {
+                break;
+            } else {
+                if  left { left_off  = off; }
+                if right { right_off = off; }
+            }
+        }
+        if left_off + right_off > 0 { Some((-left_off, right_off)) } else { None }
     }
 
     fn swap(&mut self, idx: usize, x: X, y: Y) {
@@ -208,12 +244,25 @@ impl Cell {
     pub fn empty() -> Self { Self { vx: 0.0, vy: 0.0, time: 0, touched: 0, id: CellId::Empty } }
     pub fn sand() -> Self { Self { id: CellId::Sand, ..Self::empty() } }
     pub fn water() -> Self { Self { id: CellId::Water, ..Self::empty() } }
+    pub fn out_of_bounds() -> Self { Self { id: CellId::OutOfBounds, ..Self::empty() } }
 
     pub fn char(&self) -> char {
         match self.id {
             Empty => ' ',
             Sand => '.',
             Water => '~',
+            OutOfBounds => '#',
+        }
+    }
+}
+
+impl From<CellId> for Cell {
+    fn from(id: CellId) -> Cell {
+        match id {
+            Empty => Cell::empty(),
+            Sand => Cell::sand(),
+            Water => Cell::water(),
+            OutOfBounds => Cell::out_of_bounds(),
         }
     }
 }
@@ -224,10 +273,12 @@ pub enum CellId {
     Empty = 0,
     Sand = 1,
     Water = 2,
+    OutOfBounds = 255,
 }
 
 struct MyGame {
     cells: Cells,
+    paint_size: u32,
 }
 
 impl MyGame {
@@ -237,7 +288,7 @@ impl MyGame {
         let h = size.height as usize / 4;
         let cells = Cells::new(w, h);
 
-        let game = MyGame { cells };
+        let game = MyGame { cells, paint_size: 4 };
         game
     }
 }
@@ -251,13 +302,13 @@ impl EventHandler for MyGame {
         let rand = |p| rand::random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
-            for_rectangle(4, 3, &mut |dx, dy|
+            for_circle(self.paint_size, &mut |dx, dy|
                 if rand(0.9) {
                     self.cells.paint(x + dx, y + dy, Sand);
                 }
             );
         } else if button_pressed(ctx, MouseButton::Right) {
-            for_rectangle(4, 3, &mut |dx, dy|
+            for_circle(self.paint_size, &mut |dx, dy|
                 if rand(0.9) { 
                     self.cells.paint(x + dx, y + dy, Water);
                 }
@@ -288,6 +339,10 @@ impl EventHandler for MyGame {
         }
     }
 
+    fn mouse_wheel_event(&mut self, _ctx: &mut Context, _x: f32, y: f32) {
+        self.paint_size = (self.paint_size as i32 + y.ceil() as i32).max(1) as u32;
+    }
+
     fn resize_event(&mut self, _ctx: &mut Context, _width: f32, _height: f32) {}
 }
 
@@ -309,6 +364,7 @@ impl MyGame {
                     Empty => {},
                     Sand => draw(x, y, (1.0, 0.8, 0.0, 1.0)),
                     Water => draw(x, y, (0.0, 0.0, 1.0, 1.0)),
+                    OutOfBounds => {},
                 }
             }
         }
@@ -321,10 +377,28 @@ impl MyGame {
     }
 }
 
-fn for_rectangle<F>(w: i32, h: i32, f: &mut F) where F: FnMut(i32, i32) {
-    for dy in 0..h {
-        for dx in 0..w {
+fn for_rectangle<F>(w: u32, h: u32, f: &mut F) where F: FnMut(i32, i32) {
+    let w = w as i32;
+    let h = h as i32;
+    for dy in -h/2..h/2 {
+        for dx in -w/2..w/2 {
             f(dx, dy);
         }
     }
+}
+
+fn for_circle<F>(d: u32, f: &mut F) where F: FnMut(i32, i32) {
+    let w = d as i32;
+    let h = d as i32;
+    for dy in -h/2..h/2 {
+        for dx in -w/2..w/2 {
+            if dx*dx + dy*dy <= (d*d) as i32 {
+                f(dx, dy);
+            }
+        }
+    }
+}
+
+fn rand_abs_max(a: i32, b: i32) -> i32 {
+    if (a.abs() == b.abs() && rand::random::<bool>()) || a.abs() > b.abs() { a } else { b }
 }
