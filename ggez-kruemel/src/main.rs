@@ -232,11 +232,20 @@ impl EventHandler for MyGame {
         let p = position(ctx);
         let x = p.x as i32 / 4;
         let y = p.y as i32 / 4;
+        let rand = |p| rand::random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
-            for_rectangle(3, 3, &mut |dx, dy| self.cells.paint(x + dx, y + dy, Sand));
+            for_rectangle(4, 3, &mut |dx, dy|
+                if rand(0.9) {
+                    self.cells.paint(x + dx, y + dy, Sand);
+                }
+            );
         } else if button_pressed(ctx, MouseButton::Right) {
-            for_rectangle(3, 3, &mut |dx, dy| self.cells.paint(x + dx, y + dy, Water));
+            for_rectangle(4, 3, &mut |dx, dy|
+                if rand(0.9) { 
+                    self.cells.paint(x + dx, y + dy, Water);
+                }
+            );
         }
 
         self.cells.tick();
