@@ -55,21 +55,29 @@ pub struct Cells {
     width: usize,
     height: usize,
     cells: Vec<Cell>,
+    tick_n: usize,
 }
 
 type X = i32;
 type Y = i32;
 impl Cells {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, cells: vec![Cell::empty(); width * height] }
+        Self { width, height, cells: vec![Cell::empty(); width * height], tick_n: 0 }
     }
 
     pub fn tick(&mut self) {
-        for y in (0..self.height as i32).rev() {
-            for x in 0..self.width as i32 {
-                self.update(x, y);
+        let tick_n = self.tick_n;
+        let w = self.w();
+        let h = self.h();
+        let bottom_to_top = (0..h).rev();
+        let left_right = |x| if tick_n & 1 == 1 { w - x - 1 } else { x };
+        
+        for y in bottom_to_top {
+            for x in 0..w {
+                self.update(left_right(x), y);
             }
         }
+        self.tick_n += 1;
     }
 
     pub fn format(&self) -> String {
@@ -95,13 +103,18 @@ impl Cells {
     fn h(&self) -> Y { self.height as Y }
     fn idx(&self, x: X, y: Y) -> usize { (y * self.w() + x) as usize }
     pub fn cell(&self, x: X, y: Y) -> &Cell { &self.cells[self.idx(x, y)] }
+    fn in_bounds(&self, x: X, y: Y) -> bool { x >= 0 && x < self.w() && y >= 0 && y < self.h() }
+    fn c(&self, idx: usize) -> &Cell { &self.cells[idx] }
+    fn c_copy(&self, idx: usize) -> Cell { self.cells[idx] }
 
     pub fn paint(&mut self, x: X, y: Y, id: CellId) {
-        let idx = self.idx(x, y);
-        self.cells[idx] = match id {
-            Empty => Cell::empty(),
-            Sand => Cell::sand(),
-            Water => Cell::water(),
+        if self.in_bounds(x, y) {
+            let idx = self.idx(x, y);
+            self.cells[idx] = match id {
+                Empty => Cell::empty(),
+                Sand => Cell::sand(),
+                Water => Cell::water(),
+            }
         }
     }
 
@@ -116,23 +129,27 @@ impl Cells {
     }
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize) {
-        let d = self.idx(x, y + 1);
-        let dl = self.idx(x - 1, y + 1);
-        let dr = self.idx(x + 1, y + 1);
+        let id = self.idx(x, y + 1);
+        let idl = self.idx(x - 1, y + 1);
+        let idr = self.idx(x + 1, y + 1);
         let d_free = y + 1 < self.height as i32;
         let l_free = x > 0;
         let r_free = x + 1 < self.width as i32;
-        
+            
         if d_free {
-            if self.cells[d].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[d].id = Sand;
-            } else if l_free && self.cells[dl].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[dl].id = Sand;
-            } else if r_free && self.cells[dr].id == Empty {
-                self.cells[idx].id = Empty;
-                self.cells[dr].id = Sand;
+            let d = self.c(id);
+            let dl = self.c(idl);
+            let dr = self.c(idr);
+
+            if d.touched == 0 && d.id == Empty || d.id == Water {
+                self.cells[idx].id = d.id;
+                self.cells[id].id = Sand;
+            } else if l_free && (dl.id == Empty || dl.id == Water) {
+                self.cells[idx].id = dl.id;
+                self.cells[idl].id = Sand;
+            } else if r_free && (dr.id == Empty || dr.id == Water) {
+                self.cells[idx].id = dr.id;
+                self.cells[idr].id = Sand;
             }
         }
     }
@@ -217,15 +234,9 @@ impl EventHandler for MyGame {
         let y = p.y as i32 / 4;
 
         if button_pressed(ctx, MouseButton::Left) {
-            self.cells.paint(x, y, Sand);
-            self.cells.paint(x, y+1, Sand);
-            self.cells.paint(x+1, y, Sand);
-            self.cells.paint(x+1, y+1, Sand);
+            for_rectangle(3, 3, &mut |dx, dy| self.cells.paint(x + dx, y + dy, Sand));
         } else if button_pressed(ctx, MouseButton::Right) {
-            self.cells.paint(x, y, Water);
-            self.cells.paint(x, y+1, Water);
-            self.cells.paint(x+1, y, Water);
-            self.cells.paint(x+1, y+1, Water);
+            for_rectangle(3, 3, &mut |dx, dy| self.cells.paint(x + dx, y + dy, Water));
         }
 
         self.cells.tick();
@@ -281,6 +292,14 @@ impl MyGame {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())
         } else {
             Ok(())
+        }
+    }
+}
+
+fn for_rectangle<F>(w: i32, h: i32, f: &mut F) where F: FnMut(i32, i32) {
+    for dy in 0..h {
+        for dx in 0..w {
+            f(dx, dy);
         }
     }
 }
