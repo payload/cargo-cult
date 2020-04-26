@@ -232,13 +232,12 @@ impl Cells {
             let right = self.is_empty(x + off, y);
             if !left && !right {
                 break;
-            } else {
-                if left {
-                    left_off = off;
-                }
-                if right {
-                    right_off = off;
-                }
+            }
+            if left {
+                left_off = off;
+            }
+            if right {
+                right_off = off;
             }
         }
         if left_off + right_off > 0 {
