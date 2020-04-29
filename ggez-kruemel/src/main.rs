@@ -84,12 +84,11 @@ impl Cells {
         }
 
         let mut count = [0; 256];
-        for y in 0..h {
-            for x in 0..w {
-                let id = self.cell_id(x, y) as usize;
-                count[id] += 1;
-            }
+        for cell in self.cells.iter_mut() {
+            count[cell.id as usize] += 1;
+            cell.touched = false;
         }
+
         for (id, n) in count.iter().copied().enumerate() {
             if n > 0 {
                 // println!("{:?} {}", id, n);
@@ -152,12 +151,7 @@ impl Cells {
     pub fn paint(&mut self, x: X, y: Y, id: CellId) {
         if self.in_bounds(x, y) {
             let idx = self.idx(x, y);
-            self.cells[idx] = match id {
-                Empty => Cell::empty(),
-                Sand => Cell::sand(),
-                Water => Cell::water(),
-                OutOfBounds => Cell::out_of_bounds(),
-            }
+            self.cells[idx] = id.into();
         }
     }
 
@@ -165,16 +159,19 @@ impl Cells {
         let idx = self.idx(x, y);
         let id = self.cells[idx].id;
         match id {
-            Empty => {}
             Sand => self.update_sand(x, y, idx),
             Water => self.update_water(x, y, idx),
-            OutOfBounds => {}
+            _ => {},
         }
     }
 
     fn cell_id(&self, x: X, y: Y) -> CellId {
         if let Some(idx) = self.checked_idx(x, y) {
-            self.cells[idx].id
+            if !self.cells[idx].touched {
+                self.cells[idx].id
+            } else {
+                Touched
+            }
         } else {
             OutOfBounds
         }
@@ -247,11 +244,14 @@ impl Cells {
         }
     }
 
-    fn swap(&mut self, idx: usize, x: X, y: Y) {
-        let my_id = self.cells[idx].id;
-        let other = self.idx(x, y);
-        self.cells[idx].id = self.cells[other].id;
-        self.cells[other].id = my_id;
+    fn swap(&mut self, a_idx: usize, x: X, y: Y) {
+        let a_id = self.cells[a_idx].id;
+        let b_idx = self.idx(x, y);
+        let b_id = self.cells[b_idx].id;
+        self.cells[a_idx].id = b_id;
+        self.cells[a_idx].touched = b_id != Empty;
+        self.cells[b_idx].id = a_id;
+        self.cells[b_idx].touched = a_id != Empty;
     }
 
     fn is_empty(&self, x: X, y: Y) -> bool {
@@ -265,22 +265,25 @@ pub struct Cell {
     pub vx: f32,
     pub vy: f32,
     pub time: u8,
-    pub touched: u8,
+    pub touched: bool,
     pub id: CellId,
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    pub fn empty() -> Self { Self { vx: 0.0, vy: 0.0, time: 0, touched: 0, id: CellId::Empty } }
-    pub fn sand() -> Self { Self { id: CellId::Sand, ..Self::empty() } }
-    pub fn water() -> Self { Self { id: CellId::Water, ..Self::empty() } }
-    pub fn out_of_bounds() -> Self { Self { id: CellId::OutOfBounds, ..Self::empty() } }
+    fn new(id: CellId) -> Self { Self { vx: 0.0, vy: 0.0, time: 0, touched: false, id } }
+    pub fn empty() -> Self { Self::new(Empty) }
+    pub fn sand() -> Self { Self::new(Sand) }
+    pub fn water() -> Self { Self::new(Water) }
+    pub fn touched() -> Self { Self::new(Touched) }
+    pub fn out_of_bounds() -> Self { Self::new(OutOfBounds) }
 
     pub fn char(&self) -> char {
         match self.id {
             Empty => ' ',
             Sand => '.',
             Water => '~',
+            Touched => 'T',
             OutOfBounds => '#',
         }
     }
@@ -292,6 +295,7 @@ impl From<CellId> for Cell {
             Empty => Cell::empty(),
             Sand => Cell::sand(),
             Water => Cell::water(),
+            Touched => Cell::touched(),
             OutOfBounds => Cell::out_of_bounds(),
         }
     }
@@ -303,6 +307,7 @@ pub enum CellId {
     Empty = 0,
     Sand = 1,
     Water = 2,
+    Touched = 254,
     OutOfBounds = 255,
 }
 
@@ -394,10 +399,9 @@ impl MyGame {
         for y in 0..self.cells.h() {
             for x in 0..self.cells.w() {
                 match self.cells.cell(x, y).id {
-                    Empty => {}
                     Sand => draw(x, y, (1.0, 0.8, 0.0, 1.0)),
                     Water => draw(x, y, (0.0, 0.0, 1.0, 1.0)),
-                    OutOfBounds => {}
+                    _ => {},
                 }
             }
         }
