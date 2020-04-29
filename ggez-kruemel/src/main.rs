@@ -6,6 +6,9 @@ use ggez::{Context, ContextBuilder, GameResult};
 
 // use std::default;
 
+#[macro_use]
+extern crate bitflags;
+
 fn main() {
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .window_setup(ggez::conf::WindowSetup {
@@ -86,7 +89,7 @@ impl Cells {
         let mut count = [0; 256];
         for cell in self.cells.iter_mut() {
             count[cell.id as usize] += 1;
-            cell.touched = false;
+            cell.set_touched(false);
         }
 
         for (id, n) in count.iter().copied().enumerate() {
@@ -167,14 +170,11 @@ impl Cells {
 
     fn cell_id(&self, x: X, y: Y) -> CellId {
         if let Some(idx) = self.checked_idx(x, y) {
-            if !self.cells[idx].touched {
-                self.cells[idx].id
-            } else {
-                Touched
-            }
-        } else {
-            OutOfBounds
+            if !self.cells[idx].touched() {
+                return self.cells[idx].id;
+            } 
         }
+        Unavailable
     }
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize) {
@@ -249,9 +249,9 @@ impl Cells {
         let b_idx = self.idx(x, y);
         let b_id = self.cells[b_idx].id;
         self.cells[a_idx].id = b_id;
-        self.cells[a_idx].touched = b_id != Empty;
+        self.cells[a_idx].set_touched(b_id != Empty);
         self.cells[b_idx].id = a_id;
-        self.cells[b_idx].touched = a_id != Empty;
+        self.cells[b_idx].set_touched(a_id != Empty);
     }
 
     fn is_empty(&self, x: X, y: Y) -> bool {
@@ -262,26 +262,44 @@ impl Cells {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cell {
-    pub touched: bool,
+    flags: CellFlags,
     pub id: CellId,
+}
+
+bitflags! {
+    struct CellFlags: u8 {
+        const EMPTY   = 0b00000000;
+        const TOUCHED = 0b00000001;
+        const SURFACE = 0b00000010;
+    }
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { touched: false, id } }
+    fn new(id: CellId) -> Self { Self { flags: CellFlags::EMPTY, id } }
     pub fn empty() -> Self { Self::new(Empty) }
     pub fn sand() -> Self { Self::new(Sand) }
     pub fn water() -> Self { Self::new(Water) }
-    pub fn touched() -> Self { Self::new(Touched) }
-    pub fn out_of_bounds() -> Self { Self::new(OutOfBounds) }
+    pub fn unavailable() -> Self { Self::new(Unavailable) }
+
+    fn set_flag(&mut self, flag: CellFlags, set: bool) {
+        if set {
+            self.flags |= flag;
+        } else {
+            self.flags -= flag;
+        }
+    }
+
+    pub fn set_touched(&mut self, set: bool) { self.set_flag(CellFlags::TOUCHED, set) }
+    pub fn touched(&self) -> bool { self.flags == CellFlags::TOUCHED }
+    pub fn surface(&self) -> bool { self.flags == CellFlags::SURFACE }
 
     pub fn char(&self) -> char {
         match self.id {
             Empty => ' ',
             Sand => '.',
             Water => '~',
-            Touched => 'T',
-            OutOfBounds => '#',
+            Unavailable => 'X',
         }
     }
 }
@@ -292,8 +310,7 @@ impl From<CellId> for Cell {
             Empty => Cell::empty(),
             Sand => Cell::sand(),
             Water => Cell::water(),
-            Touched => Cell::touched(),
-            OutOfBounds => Cell::out_of_bounds(),
+            Unavailable => Cell::unavailable(),
         }
     }
 }
@@ -304,8 +321,7 @@ pub enum CellId {
     Empty = 0,
     Sand = 1,
     Water = 2,
-    Touched = 254,
-    OutOfBounds = 255,
+    Unavailable = 255,
 }
 
 struct MyGame {

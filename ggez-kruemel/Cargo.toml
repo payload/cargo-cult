@@ -8,6 +8,7 @@ license = "AGPL3"
 [dependencies]
 rand = "0.7.3"
 gfx = "0.18.2"
+bitflags = "1.2.1"
 
 [dependencies.ggez]
 version = "0.5.1"
