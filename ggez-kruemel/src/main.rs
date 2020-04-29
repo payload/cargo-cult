@@ -141,7 +141,7 @@ impl Cells {
 
     fn checked_idx(&self, x: X, y: Y) -> Option<usize> {
         let idx = self.idx(x, y);
-        if idx >= 0 && idx < self.cells.len() {
+        if self.in_bounds(x, y) {
             Some(idx)
         } else {
             None
@@ -231,14 +231,14 @@ impl Cells {
                 break;
             }
             if left {
-                left_off = off;
+                left_off = -off;
             }
             if right {
                 right_off = off;
             }
         }
-        if left_off + right_off > 0 {
-            Some((-left_off, right_off))
+        if left_off != 0 || right_off != 0 {
+            Some((left_off, right_off))
         } else {
             None
         }
@@ -255,7 +255,7 @@ impl Cells {
     }
 
     fn is_empty(&self, x: X, y: Y) -> bool {
-        self.in_bounds(x, y) && self.cell(x, y).id == Empty
+        self.cell_id(x, y) == Empty
     }
 }
 
