@@ -262,16 +262,13 @@ impl Cells {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cell {
-    pub vx: f32,
-    pub vy: f32,
-    pub time: u8,
     pub touched: bool,
     pub id: CellId,
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { vx: 0.0, vy: 0.0, time: 0, touched: false, id } }
+    fn new(id: CellId) -> Self { Self { touched: false, id } }
     pub fn empty() -> Self { Self::new(Empty) }
     pub fn sand() -> Self { Self::new(Sand) }
     pub fn water() -> Self { Self::new(Water) }
