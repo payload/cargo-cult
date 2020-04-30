@@ -92,12 +92,6 @@ impl Cells {
             cell.set_touched(false);
         }
 
-        for (id, n) in count.iter().copied().enumerate() {
-            if n > 0 {
-                // println!("{:?} {}", id, n);
-            }
-        }
-
         self.tick_n += 1;
     }
 
@@ -134,12 +128,6 @@ impl Cells {
     }
     fn in_bounds(&self, x: X, y: Y) -> bool {
         x >= 0 && x < self.w() && y >= 0 && y < self.h()
-    }
-    fn c(&self, idx: usize) -> &Cell {
-        &self.cells[idx]
-    }
-    fn c_copy(&self, idx: usize) -> Cell {
-        self.cells[idx]
     }
 
     fn checked_idx(&self, x: X, y: Y) -> Option<usize> {
@@ -292,6 +280,8 @@ impl Cell {
 
     pub fn set_touched(&mut self, set: bool) { self.set_flag(CellFlags::TOUCHED, set) }
     pub fn touched(&self) -> bool { self.flags == CellFlags::TOUCHED }
+
+    pub fn set_surface(&mut self, set: bool) { self.set_flag(CellFlags::SURFACE, set) }
     pub fn surface(&self) -> bool { self.flags == CellFlags::SURFACE }
 
     pub fn char(&self) -> char {
@@ -423,19 +413,6 @@ impl MyGame {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())
         } else {
             Ok(())
-        }
-    }
-}
-
-fn for_rectangle<F>(w: u32, h: u32, f: &mut F)
-where
-    F: FnMut(i32, i32),
-{
-    let w = w as i32;
-    let h = h as i32;
-    for dy in -h / 2..h / 2 {
-        for dx in -w / 2..w / 2 {
-            f(dx, dy);
         }
     }
 }
