@@ -215,7 +215,6 @@ impl Cells {
             self.try_spread(x, y);
         } else if self.cell_id(x - 1, y) == Empty || self.cell_id(x + 1, y) == Empty {
             self.mut_cell(x, y).flags.insert(CellFlags::SPREAD);
-            self.mut_cell(x, y).flags.insert(CellFlags::TOUCHED);
         }
     }
 
