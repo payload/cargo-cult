@@ -1,8 +1,10 @@
 // Copyright (c) 2020 Gilbert Röhrbein
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
-use ggez::input::keyboard::{KeyCode, KeyMods};
+use ggez::input::keyboard::{self, KeyCode, KeyMods};
 use ggez::{Context, ContextBuilder, GameResult};
+
+use rand::prelude::*;
 
 // use std::default;
 
@@ -33,26 +35,25 @@ use CellId::*;
 
 #[test]
 fn test_tick_cells() {
-    let mut cells = Cells::new(3, 5);
-    cells.paint(1, 0, Sand);
-    cells.paint(1, 1, Sand);
-    cells.paint(1, 2, Sand);
-    cells.paint(1, 3, Sand);
+    let mut cells = Cells::new(11, 11);
+    cells.paint(2, 10, Sand);
+    cells.paint(8, 10, Sand);
+    cells.paint(5, 10, Water);
+    cells.paint(4, 10, Water);
+    cells.paint(6, 10, Water);
 
     println!("{}", cells.format());
     cells.tick();
     println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
 }
+
+/*
+else if ul == Water && r(0.3) {
+            self.swap_touch(idx, x - 1, y + 1);
+        } else if ur == Water && r(0.3) {
+            self.swap_touch(idx, x + 1, y + 1);
+        } 
+        */
 
 pub struct Cells {
     width: usize,
@@ -126,6 +127,10 @@ impl Cells {
     pub fn cell(&self, x: X, y: Y) -> &Cell {
         &self.cells[self.idx(x, y)]
     }
+    pub fn mut_cell(&mut self, x: X, y: Y) -> &mut Cell {
+        let idx = self.idx(x, y);
+        &mut self.cells[idx]
+    }
     fn in_bounds(&self, x: X, y: Y) -> bool {
         x >= 0 && x < self.w() && y >= 0 && y < self.h()
     }
@@ -148,8 +153,9 @@ impl Cells {
 
     fn update(&mut self, x: X, y: Y) {
         let idx = self.idx(x, y);
-        let id = self.cells[idx].id;
-        match id {
+        let cell = self.cells[idx];
+        if cell.touched() { return }
+        match cell.id {
             Sand => self.update_sand(x, y, idx),
             Water => self.update_water(x, y, idx),
             _ => {},
@@ -169,20 +175,13 @@ impl Cells {
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
-        let r = |p| rand::random::<f32>() < p;
 
         if d == Empty {
-            self.swap(idx, x, y + 1);
-        } else if d == Water && r(0.3) {
-            self.swap(idx, x, y + 1);
+            self.swap_touch(idx, x, y + 1);
         } else if dl == Empty {
-            self.swap(idx, x - 1, y + 1);
+            self.swap_touch(idx, x - 1, y + 1);
         } else if dr == Empty {
-            self.swap(idx, x + 1, y + 1);
-        } else if dl == Water && r(0.3) {
-            self.swap(idx, x - 1, y + 1);
-        } else if dr == Water && r(0.3) {
-            self.swap(idx, x + 1, y + 1);
+            self.swap_touch(idx, x + 1, y + 1);
         }
     }
 
@@ -190,6 +189,15 @@ impl Cells {
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
+        let u = self.cell_id(x, y - 1);
+        let ul = self.cell_id(x - 1, y - 1);
+        let ur = self.cell_id(x + 1, y - 1);
+        let r = |p| random::<f32>() < p;
+        
+        let cell = self.mut_cell(x, y);
+        let spread = cell.flags.contains(CellFlags::SPREAD);
+        cell.flags.remove(CellFlags::SPREAD);
+        cell.flags.remove(CellFlags::HIDDEN);
 
         if d == Empty {
             self.swap(idx, x, y + 1);
@@ -197,24 +205,48 @@ impl Cells {
             self.swap(idx, x - 1, y + 1);
         } else if dr == Empty {
             self.swap(idx, x + 1, y + 1);
-        } else {
+        } else if u == Sand && r(0.3) {
+            self.swap_touch(idx, x, y - 1);
+        } else if ul == Sand && r(0.1) {
+            self.swap_touch(idx, x - 1, y - 1);
+        } else if ur == Sand && r(0.1) {
+            self.swap_touch(idx, x + 1, y - 1);
+        } else if [d, dl, dr].contains(&Water) && spread {
             self.try_spread(x, y);
+        } else if self.cell_id(x - 1, y) == Empty || self.cell_id(x + 1, y) == Empty {
+            self.mut_cell(x, y).flags.insert(CellFlags::SPREAD);
+            self.mut_cell(x, y).flags.insert(CellFlags::TOUCHED);
         }
     }
 
     fn try_spread(&mut self, x: X, y: Y) {
-        if let Some((left, right)) = self.try_spread_get_offsets(x, y) {
+        if let Some((left, right)) = self.try_spread_get_offsets(x, y, 5 - thread_rng().gen_range(0, 3)) {
             let off = rand_abs_max(left, right);
-            self.swap(self.idx(x, y), x + off, y);
+            self.swap_touch(self.idx(x, y), x + off, y);
+
+            self.mut_cell(x + off, y).flags.insert(CellFlags::HIDDEN);
+            self.mut_cell(x + off, y).flags.insert(CellFlags::SPREAD);
+
+            /*
+            let c = |dx, dy| self.cell_id(x + off + dx, y + dy);
+            //if (Empty, Empty, Empty) == (c(0, -1), c(-1, 0), c(1, 0)) {
+            if (c(-1, 0), c(1, 0)) == (Water, Water) && Empty == c(0, -1) && [c(0, 1), c(-1, 1), c(1, 1)].contains(&Water) {
+                self.mut_cell(x + off, y).set_hidden(true)
+            }
+            */
+        } else {
+            self.mut_cell(x, y).flags.remove(CellFlags::SPREAD)
         }
     }
 
-    fn try_spread_get_offsets(&self, x: X, y: Y) -> Option<(i32, i32)> {
+    fn try_spread_get_offsets(&self, x: X, y: Y, max: i32) -> Option<(i32, i32)> {
+        let mut left = true;
+        let mut right = true;
         let mut left_off = 0;
         let mut right_off = 0;
-        for off in 1..5 {
-            let left = self.is_empty(x - off, y);
-            let right = self.is_empty(x + off, y);
+        for off in 1..=max {
+            left &= self.is_empty(x - off, y);
+            right &= self.is_empty(x + off, y);
             if !left && !right {
                 break;
             }
@@ -232,7 +264,7 @@ impl Cells {
         }
     }
 
-    fn swap(&mut self, a_idx: usize, x: X, y: Y) {
+    fn swap_touch(&mut self, a_idx: usize, x: X, y: Y) {
         let a_id = self.cells[a_idx].id;
         let b_idx = self.idx(x, y);
         let b_id = self.cells[b_idx].id;
@@ -240,6 +272,14 @@ impl Cells {
         self.cells[a_idx].set_touched(b_id != Empty);
         self.cells[b_idx].id = a_id;
         self.cells[b_idx].set_touched(a_id != Empty);
+    }
+
+    fn swap(&mut self, a_idx: usize, x: X, y: Y) {
+        let a_id = self.cells[a_idx].id;
+        let b_idx = self.idx(x, y);
+        let b_id = self.cells[b_idx].id;
+        self.cells[a_idx].id = b_id;
+        self.cells[b_idx].id = a_id;
     }
 
     fn is_empty(&self, x: X, y: Y) -> bool {
@@ -259,6 +299,8 @@ bitflags! {
         const EMPTY   = 0b00000000;
         const TOUCHED = 0b00000001;
         const SURFACE = 0b00000010;
+        const HIDDEN  = 0b00000100;
+        const SPREAD  = 0b00001000;
     }
 }
 
@@ -277,12 +319,18 @@ impl Cell {
             self.flags -= flag;
         }
     }
+    fn flag(&self, flag: CellFlags) -> bool {
+        self.flags & flag == flag
+    }
+
+    pub fn set_hidden(&mut self, set: bool) { self.set_flag(CellFlags::HIDDEN, set) }
+    pub fn hidden(&self) -> bool { self.flag(CellFlags::HIDDEN) }
 
     pub fn set_touched(&mut self, set: bool) { self.set_flag(CellFlags::TOUCHED, set) }
-    pub fn touched(&self) -> bool { self.flags == CellFlags::TOUCHED }
+    pub fn touched(&self) -> bool { self.flag(CellFlags::TOUCHED) }
 
     pub fn set_surface(&mut self, set: bool) { self.set_flag(CellFlags::SURFACE, set) }
-    pub fn surface(&self) -> bool { self.flags == CellFlags::SURFACE }
+    pub fn surface(&self) -> bool { self.flag(CellFlags::SURFACE) }
 
     pub fn char(&self) -> char {
         match self.id {
@@ -340,7 +388,7 @@ impl EventHandler for MyGame {
         let p = position(ctx);
         let x = p.x as i32 / 4;
         let y = p.y as i32 / 4;
-        let rand = |p| rand::random::<f64>() < p;
+        let rand = |p| random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
             for_circle(self.paint_size, &mut |dx, dy| {
@@ -401,9 +449,14 @@ impl MyGame {
 
         for y in 0..self.cells.h() {
             for x in 0..self.cells.w() {
-                match self.cells.cell(x, y).id {
+                let cell = self.cells.cell(x, y);
+                match cell.id {
                     Sand => draw(x, y, (1.0, 0.8, 0.0, 1.0)),
-                    Water => draw(x, y, (0.0, 0.0, 1.0, 1.0)),
+                    Water => if keyboard::is_key_pressed(ctx, KeyCode::H) && cell.hidden() {
+                        draw(x, y, (0.5, 0.0, 1.0, 1.0));
+                    } else if !cell.hidden() {
+                        draw(x, y, (0.0, 0.0, 1.0, 1.0));
+                    },
                     _ => {},
                 }
             }
@@ -433,7 +486,7 @@ where
 }
 
 fn rand_abs_max(a: i32, b: i32) -> i32 {
-    if (a.abs() == b.abs() && rand::random::<bool>()) || a.abs() > b.abs() {
+    if (a.abs() == b.abs() && random::<bool>()) || a.abs() > b.abs() {
         a
     } else {
         b
