@@ -75,7 +75,7 @@ impl Cells {
     }
 
     fn sim_update(&mut self) {
-        for i in 0..4 {
+        for i in 0..1 {
             self.tick();
         }
     }
@@ -86,14 +86,14 @@ impl Cells {
         let h = self.h();
         let bottom_to_top = (0..h).rev();
         let left_right = |x| if tick_n & 1 == 1 { w - x - 1 } else { x };
-        let update_sand = tick_n % 4 == 0;
+        let update_sand = true;
 
         for y in bottom_to_top {
             for x in 0..w {
                 let x = left_right(x);
                 let idx = self.idx(x, y);
                 let cell = self.cells[idx];
-                if cell.touched() { return }
+                if cell.touched() { continue }
                 match cell.id {
                     Sand if update_sand => self.update_sand(x, y, idx),
                     Water => { self.update_water(x, y, idx); },
@@ -207,33 +207,59 @@ impl Cells {
 
         // fall down
         if d == Empty {
-            self.swap(idx, x, y + 1)
+            return self.swap(idx, x, y + 1)
         } else if dl == Empty {
-            self.swap(idx, x - 1, y + 1)
+            return self.swap(idx, x - 1, y + 1)
         } else if dr == Empty {
-            self.swap(idx, x + 1, y + 1)
+            return self.swap(idx, x + 1, y + 1)
         }
+
         // spread to side on water surface or under falling sand
-        else if d == Water && (u == Empty || u == Sand) {
+        let left = dl == Water && l == Empty;
+        let right = dr == Water && r == Empty;
+        if d == Water && (left || right) && (u == Empty || u == Sand) {
             let bias = random::<bool>();
-            let left = dl == Water && l == Empty;
-            let right = dr == Water && r == Empty;
             if (left && right && bias) || (left && !right) {
-                self.mut_cell(x, y).flags.insert(CellFlags::SPREAD);
-                self.swap(idx, x - 1, y)
+                return self.swap(idx, x - 1, y)
             } else if right {
-                self.mut_cell(x, y).flags.insert(CellFlags::SPREAD);
-                self.swap(idx, x + 1, y)
-            } else {
-                (x, y)
+                return self.swap(idx, x + 1, y)
             }
         }
+
         // trickle through falling sand
-        else if d == Water && u == Sand {
-            (x, y)
-        } else {
-            (x, y)
+        // (left and right is not Empty)
+        if (d == Water || l == Water || r == Water) && (u == Sand || ul == Sand || ur == Sand) {
+            let bias = random::<bool>();
+            
+            // NOTE: another variant of sand falling, duplicates parts of update_sand
+            // TODO: does not return new position
+
+            if u == Empty {
+                self.swap_touch(idx, x, y - 1);
+
+                if (bias && ul == Sand && ur == Sand) || (ul == Sand && ur != Sand) {
+                    self.swap_touch(idx, x - 1, y - 1);
+                } else if ur == Sand {
+                    self.swap_touch(idx, x + 1, y - 1);
+                }
+            } else if u == Water && rand(0.3) {
+                if (bias && ul == Sand && ur == Sand) || (ul == Sand && ur != Sand) {
+                    self.swap_touch(idx, x - 1, y - 1);
+                } else if ur == Sand {
+                    self.swap_touch(idx, x + 1, y - 1);
+                }
+            } else if u == Sand && rand(0.3) {
+                if (bias && ul == Empty && ur == Empty) || (ul == Empty && ur != Empty) {
+                    self.swap_touch(idx, x - 1, y - 1);
+                } else if ur == Empty {
+                    self.swap_touch(idx, x + 1, y - 1);
+                }
+
+                self.swap_touch(idx, x, y - 1);
+            }
         }
+            
+        (x, y)
     }
 
     fn swap_touch(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
@@ -338,19 +364,26 @@ pub enum CellId {
 
 struct MyGame {
     cells: Cells,
+
     paint_size: u32,
+    scale: u32,
+    
+    paused: bool,
 }
 
 impl MyGame {
     pub fn new(ctx: &mut Context) -> MyGame {
         let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
-        let w = size.width as usize / 4;
-        let h = size.height as usize / 4;
-        let cells = Cells::new(w, h);
+        let scale = 8;
+        let w = size.width as u32 / scale;
+        let h = size.height as u32 / scale;
+        let cells = Cells::new(w as usize, h as usize);
 
         let game = MyGame {
             cells,
             paint_size: 4,
+            scale,
+            paused: true,
         };
         game
     }
@@ -360,8 +393,8 @@ impl EventHandler for MyGame {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         use ggez::input::mouse::*;
         let p = position(ctx);
-        let x = p.x as i32 / 4;
-        let y = p.y as i32 / 4;
+        let x = p.x as i32 / self.scale as i32;
+        let y = p.y as i32 / self.scale as i32;
         let rand = |p| random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
@@ -378,7 +411,10 @@ impl EventHandler for MyGame {
             });
         }
 
-        self.cells.sim_update();
+        if !self.paused {
+            self.cells.sim_update()
+        }
+
         Ok(())
     }
 
@@ -395,15 +431,22 @@ impl EventHandler for MyGame {
         keymods: KeyMods,
         _repeat: bool,
     ) {
-        let _shift = keymods == KeyMods::SHIFT;
+        use KeyCode::*;
+        let shift = keymods == KeyMods::SHIFT;
         match keycode {
-            KeyCode::Escape => ggez::event::quit(ctx),
+            Escape => ggez::event::quit(ctx),
+            U => self.cells.sim_update(),
+            P => self.paused = !self.paused,
+            Minus => self.scale = 1.max(self.scale - 1),
+            Equals if shift => self.scale = self.scale + 1,
+            Add => self.scale = self.scale + 1,
+            Key0 => self.scale = 8,
             _ => (),
         }
     }
 
     fn mouse_wheel_event(&mut self, _ctx: &mut Context, _x: f32, y: f32) {
-        self.paint_size = (self.paint_size as i32 + y.ceil() as i32).max(1) as u32;
+        self.paint_size = (self.paint_size as i32 + y.ceil() as i32).max(0) as u32;
     }
 
     fn resize_event(&mut self, _ctx: &mut Context, _width: f32, _height: f32) {}
@@ -411,12 +454,13 @@ impl EventHandler for MyGame {
 
 impl MyGame {
     fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let s = self.scale as i32;
         let mut builder = graphics::MeshBuilder::new();
 
         let mut draw = |x, y, c: (f32, f32, f32, f32)| {
             builder.rectangle(
                 graphics::DrawMode::fill(),
-                graphics::Rect::new_i32(x * 4, y * 4, 4, 4),
+                graphics::Rect::new_i32(x * s, y * s, s, s),
                 c.into(),
             );
         };
@@ -448,10 +492,9 @@ fn for_circle<F>(d: u32, f: &mut F)
 where
     F: FnMut(i32, i32),
 {
-    let w = d as i32;
-    let h = d as i32;
-    for dy in -h / 2..h / 2 {
-        for dx in -w / 2..w / 2 {
+    let d = d as i32;
+    for dy in -d..=d {
+        for dx in -d..=d {
             if dx * dx + dy * dy <= (d * d) as i32 {
                 f(dx, dy);
             }
