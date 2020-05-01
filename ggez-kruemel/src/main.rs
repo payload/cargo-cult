@@ -6,6 +6,8 @@ use ggez::{Context, ContextBuilder, GameResult};
 
 use rand::prelude::*;
 
+use palette::*;
+
 // use std::default;
 
 #[macro_use]
@@ -263,22 +265,24 @@ impl Cells {
     }
 
     fn swap_touch(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
-        let a_id = self.cells[a_idx].id;
         let b_idx = self.idx(x, y);
-        let b_id = self.cells[b_idx].id;
-        self.cells[a_idx].id = b_id;
-        self.cells[a_idx].set_touched(b_id != Empty);
-        self.cells[b_idx].id = a_id;
-        self.cells[b_idx].set_touched(a_id != Empty);
+        let mut a = self.cells[a_idx];
+        let mut b = self.cells[b_idx];
+        let a_touched = a.id != Empty;
+        let b_touched = b.id != Empty;
+        a.set_touched(a_touched);
+        b.set_touched(b_touched);
+        self.cells[a_idx] = b;
+        self.cells[b_idx] = a;
         (x, y)
     }
 
     fn swap(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
-        let a_id = self.cells[a_idx].id;
         let b_idx = self.idx(x, y);
-        let b_id = self.cells[b_idx].id;
-        self.cells[a_idx].id = b_id;
-        self.cells[b_idx].id = a_id;
+        let a = self.cells[a_idx];
+        let b = self.cells[b_idx];
+        self.cells[a_idx] = b;
+        self.cells[b_idx] = a;
         (x, y)
     }
 
@@ -290,6 +294,7 @@ impl Cells {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cell {
+    random: f32,
     flags: CellFlags,
     pub id: CellId,
 }
@@ -306,7 +311,7 @@ bitflags! {
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { flags: CellFlags::EMPTY, id } }
+    fn new(id: CellId) -> Self { Self { random: random(), flags: CellFlags::EMPTY, id } }
     pub fn empty() -> Self { Self::new(Empty) }
     pub fn sand() -> Self { Self::new(Sand) }
     pub fn water() -> Self { Self::new(Water) }
@@ -457,7 +462,7 @@ impl MyGame {
         let s = self.scale as i32;
         let mut builder = graphics::MeshBuilder::new();
 
-        let mut draw = |x, y, c: (f32, f32, f32, f32)| {
+        let mut draw = |x, y, c: (f32, f32, f32)| {
             builder.rectangle(
                 graphics::DrawMode::fill(),
                 graphics::Rect::new_i32(x * s, y * s, s, s),
@@ -469,11 +474,16 @@ impl MyGame {
             for x in 0..self.cells.w() {
                 let cell = self.cells.cell(x, y);
                 match cell.id {
-                    Sand => draw(x, y, (1.0, 0.8, 0.0, 1.0)),
+                    Sand => {
+                        let color = Hsl::new(40.0, 1.0, 0.3 + 0.2 * cell.random);
+                        draw(x, y, Srgb::from(color).into_components());
+                    },
                     Water => if keyboard::is_key_pressed(ctx, KeyCode::H) && cell.hidden() {
-                        draw(x, y, (0.5, 0.0, 1.0, 1.0));
+                        let color = Hsl::new(180.0, 1.0, 0.3 + 0.2 * cell.random);
+                        draw(x, y, Srgb::from(color).into_components());
                     } else if !cell.hidden() {
-                        draw(x, y, (0.0, 0.0, 1.0, 1.0));
+                        let color = Hsl::new(220.0, 1.0, 0.3 + 0.2 * cell.random);
+                        draw(x, y, Srgb::from(color).into_components());
                     },
                     _ => {},
                 }
