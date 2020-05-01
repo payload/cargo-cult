@@ -219,7 +219,7 @@ impl Cells {
         // spread to side on water surface or under falling sand
         let left = dl == Water && l == Empty;
         let right = dr == Water && r == Empty;
-        if d == Water && (left || right) && (u == Empty || u == Sand) {
+        if (left || right) && (u == Empty || u == Sand) {
             let bias = random::<bool>();
             if (left && right && bias) || (left && !right) {
                 return self.swap(idx, x - 1, y)
