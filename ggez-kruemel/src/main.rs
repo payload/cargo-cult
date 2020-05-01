@@ -97,7 +97,7 @@ impl Cells {
                 let cell = self.cells[idx];
                 if cell.touched() { continue }
                 match cell.id {
-                    Sand if update_sand => self.update_sand(x, y, idx),
+                    Sand if update_sand => { self.update_sand(x, y, idx); },
                     Water => { self.update_water(x, y, idx); },
                     _ => {},
                 }
@@ -177,18 +177,28 @@ impl Cells {
         Unavailable
     }
 
-    fn update_sand(&mut self, x: X, y: Y, idx: usize) {
+    fn update_sand(&mut self, x: X, y: Y, idx: usize)  -> (X, Y) {
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
+        let l = self.cell_id(x - 1, y);
+        let r = self.cell_id(x + 1, y);
+        let bias: bool = random();
 
+        // fall down
         if d == Empty {
-            self.swap_touch(idx, x, y + 1);
-        } else if dl == Empty {
-            self.swap_touch(idx, x - 1, y + 1);
-        } else if dr == Empty {
-            self.swap_touch(idx, x + 1, y + 1);
+            return self.swap_touch(idx, x, y + 1);
         }
+
+        let left = dl == Empty && l != Sand && l != Water;
+        let right = dr == Empty && r != Sand && r != Water;
+        if (left && right && bias) || (left && !right) {
+            return self.swap_touch(idx, x - 1, y + 1);
+        } else if right {
+            return self.swap_touch(idx, x + 1, y + 1);
+        }
+
+        (x, y)
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
@@ -200,26 +210,31 @@ impl Cells {
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
+        let u = self.cell_id(x, y - 1);
+        let l = self.cell_id(x - 1, y);
+        let r = self.cell_id(x + 1, y);
+        let ul = self.cell_id(x - 1, y - 1);
+        let ur = self.cell_id(x + 1, y - 1);
+        let rand = |p| random::<f32>() < p;
+        let bias: bool = random();
 
         // fall down
         if d == Empty {
             return self.swap(idx, x, y + 1)
-        } else if dl == Empty {
-            return self.swap(idx, x - 1, y + 1)
-        } else if dr == Empty {
-            return self.swap(idx, x + 1, y + 1)
         }
 
-        let u = self.cell_id(x, y - 1);
-        let l = self.cell_id(x - 1, y - 1);
-        let r = self.cell_id(x + 1, y - 1);
-        let rand = |p| random::<f32>() < p;
+        let left = dl == Empty && l != Sand && l != Water;
+        let right = dr == Empty && r != Sand && r != Water;
+        if (left && right && bias) || (left && !right) {
+            return self.swap(idx, x - 1, y + 1);
+        } else if right {
+            return self.swap(idx, x + 1, y + 1);
+        }
 
         // spread to side on water surface or under falling sand
         let left = dl == Water && l == Empty;
         let right = dr == Water && r == Empty;
-        if (left || right) && (u == Empty || u == Sand) {
-            let bias = random::<bool>();
+        if (left || right) && u != Water {
             if (left && right && bias) || (left && !right) {
                 return self.swap(idx, x - 1, y)
             } else if right {
@@ -227,14 +242,9 @@ impl Cells {
             }
         }
 
-        let ul = self.cell_id(x - 1, y - 1);
-        let ur = self.cell_id(x + 1, y - 1);
-
         // trickle through falling sand
         // (left and right is not Empty)
-        if (d == Water || l == Water || r == Water) && (u == Sand || ul == Sand || ur == Sand) {
-            let bias = random::<bool>();
-            
+        if (d == Water || l == Water || r == Water) && (u == Sand || ul == Sand || ur == Sand) {            
             // NOTE: another variant of sand falling, duplicates parts of update_sand
             // TODO: does not return new position
 
@@ -317,6 +327,7 @@ impl Cell {
     pub fn empty() -> Self { Self::new(Empty) }
     pub fn sand() -> Self { Self::new(Sand) }
     pub fn water() -> Self { Self::new(Water) }
+    pub fn wood() -> Self { Self::new(Wood) }
     pub fn unavailable() -> Self { Self::new(Unavailable) }
 
     fn set_flag(&mut self, flag: CellFlags, set: bool) {
@@ -344,6 +355,7 @@ impl Cell {
             Empty => ' ',
             Sand => '.',
             Water => '~',
+            Wood => '#',
             Unavailable => 'X',
         }
     }
@@ -355,6 +367,7 @@ impl From<CellId> for Cell {
             Empty => Cell::empty(),
             Sand => Cell::sand(),
             Water => Cell::water(),
+            Wood => Cell::wood(),
             Unavailable => Cell::unavailable(),
         }
     }
@@ -366,6 +379,7 @@ pub enum CellId {
     Empty = 0,
     Sand = 1,
     Water = 2,
+    Wood = 3,
     Unavailable = 255,
 }
 
@@ -458,9 +472,11 @@ impl EventHandler for MyGame {
             Key1 if !shift => self.paint_primary_id = Empty,
             Key2 if !shift => self.paint_primary_id = Sand,
             Key3 if !shift => self.paint_primary_id = Water,
+            Key4 if !shift => self.paint_primary_id = Wood,
             Key1 if shift => self.paint_secondary_id = Empty,
             Key2 if shift => self.paint_secondary_id = Sand,
             Key3 if shift => self.paint_secondary_id = Water,
+            Key4 if shift => self.paint_secondary_id = Wood,
 
             _ => (),
         }
@@ -499,6 +515,10 @@ impl MyGame {
                         draw(x, y, Srgb::from(color).into_components());
                     } else if !cell.hidden() {
                         let color = Hsl::new(220.0, 1.0, 0.3 + 0.2 * cell.random);
+                        draw(x, y, Srgb::from(color).into_components());
+                    },
+                    Wood => {
+                        let color = Hsl::new(20.0, 0.6, 0.2 + 0.2 * cell.random);
                         draw(x, y, Srgb::from(color).into_components());
                     },
                     _ => {},
