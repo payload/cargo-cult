@@ -200,12 +200,6 @@ impl Cells {
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
-        let u = self.cell_id(x, y - 1);
-        let ul = self.cell_id(x - 1, y - 1);
-        let ur = self.cell_id(x + 1, y - 1);
-        let l = self.cell_id(x - 1, y - 1);
-        let r = self.cell_id(x + 1, y - 1);
-        let rand = |p| random::<f32>() < p;
 
         // fall down
         if d == Empty {
@@ -215,6 +209,11 @@ impl Cells {
         } else if dr == Empty {
             return self.swap(idx, x + 1, y + 1)
         }
+
+        let u = self.cell_id(x, y - 1);
+        let l = self.cell_id(x - 1, y - 1);
+        let r = self.cell_id(x + 1, y - 1);
+        let rand = |p| random::<f32>() < p;
 
         // spread to side on water surface or under falling sand
         let left = dl == Water && l == Empty;
@@ -227,6 +226,9 @@ impl Cells {
                 return self.swap(idx, x + 1, y)
             }
         }
+
+        let ul = self.cell_id(x - 1, y - 1);
+        let ur = self.cell_id(x + 1, y - 1);
 
         // trickle through falling sand
         // (left and right is not Empty)
