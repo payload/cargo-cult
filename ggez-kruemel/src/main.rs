@@ -372,6 +372,8 @@ pub enum CellId {
 struct MyGame {
     cells: Cells,
 
+    paint_primary_id: CellId,
+    paint_secondary_id: CellId,
     paint_size: u32,
     scale: u32,
     
@@ -388,6 +390,8 @@ impl MyGame {
 
         let game = MyGame {
             cells,
+            paint_primary_id: Sand,
+            paint_secondary_id: Empty,
             paint_size: 4,
             scale,
             paused: true,
@@ -407,13 +411,13 @@ impl EventHandler for MyGame {
         if button_pressed(ctx, MouseButton::Left) {
             for_circle(self.paint_size, &mut |dx, dy| {
                 if rand(0.9) {
-                    self.cells.paint(x + dx, y + dy, Sand);
+                    self.cells.paint(x + dx, y + dy, self.paint_primary_id);
                 }
             });
         } else if button_pressed(ctx, MouseButton::Right) {
             for_circle(self.paint_size, &mut |dx, dy| {
                 if rand(0.9) {
-                    self.cells.paint(x + dx, y + dy, Water);
+                    self.cells.paint(x + dx, y + dy, self.paint_secondary_id);
                 }
             });
         }
@@ -442,12 +446,22 @@ impl EventHandler for MyGame {
         let shift = keymods == KeyMods::SHIFT;
         match keycode {
             Escape => ggez::event::quit(ctx),
+
             U => self.cells.sim_update(),
             P => self.paused = !self.paused,
+
             Minus => self.scale = 1.max(self.scale - 1),
             Equals if shift => self.scale = self.scale + 1,
             Add => self.scale = self.scale + 1,
             Key0 => self.scale = 8,
+
+            Key1 if !shift => self.paint_primary_id = Empty,
+            Key2 if !shift => self.paint_primary_id = Sand,
+            Key3 if !shift => self.paint_primary_id = Water,
+            Key1 if shift => self.paint_secondary_id = Empty,
+            Key2 if shift => self.paint_secondary_id = Sand,
+            Key3 if shift => self.paint_secondary_id = Water,
+
             _ => (),
         }
     }
