@@ -14,6 +14,8 @@ use palette::*;
 extern crate bitflags;
 
 fn main() {
+    test_tick_cells();
+
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .window_setup(ggez::conf::WindowSetup {
             icon: "".into(),
@@ -35,7 +37,6 @@ fn main() {
 
 use CellId::*;
 
-#[test]
 fn test_tick_cells() {
     let mut cells = Cells::new(11, 11);
     cells.paint(2, 10, Sand);
@@ -49,7 +50,7 @@ fn test_tick_cells() {
     println!("{}", cells.format());
 }
 
-pub struct Cells {
+struct Cells {
     width: usize,
     height: usize,
     cells: Vec<Cell>,
@@ -59,7 +60,7 @@ pub struct Cells {
 type X = i32;
 type Y = i32;
 impl Cells {
-    pub fn new(width: usize, height: usize) -> Self {
+    fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
@@ -103,7 +104,7 @@ impl Cells {
         self.tick_n += 1;
     }
 
-    pub fn format(&self) -> String {
+    fn format(&self) -> String {
         let w = self.width;
         let h = self.height;
         let len = (w + 3) * (h + 2);
@@ -131,12 +132,8 @@ impl Cells {
     fn idx(&self, x: X, y: Y) -> usize {
         (y * self.w() + x) as usize
     }
-    pub fn cell(&self, x: X, y: Y) -> &Cell {
+    fn cell(&self, x: X, y: Y) -> &Cell {
         &self.cells[self.idx(x, y)]
-    }
-    pub fn mut_cell(&mut self, x: X, y: Y) -> &mut Cell {
-        let idx = self.idx(x, y);
-        &mut self.cells[idx]
     }
     fn in_bounds(&self, x: X, y: Y) -> bool {
         x >= 0 && x < self.w() && y >= 0 && y < self.h()
@@ -151,7 +148,7 @@ impl Cells {
         }
     }
 
-    pub fn paint(&mut self, x: X, y: Y, id: CellId) {
+    fn paint(&mut self, x: X, y: Y, id: CellId) {
         if self.in_bounds(x, y) {
             let idx = self.idx(x, y);
             self.cells[idx] = id.into();
@@ -286,12 +283,12 @@ impl Cells {
 
 // #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Cell {
+struct Cell {
     vx: f32,
     vy: f32,
     random: f32,
     flags: CellFlags,
-    pub id: CellId,
+    id: CellId,
 }
 
 bitflags! {
@@ -303,16 +300,16 @@ bitflags! {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
     fn new(id: CellId) -> Self { Self { vx: 0.0, vy: 0.0, random: random(), flags: CellFlags::empty(), id } }
-    pub fn empty() -> Self { Self::new(Empty) }
-    pub fn sand() -> Self { Self::new(Sand) }
-    pub fn water() -> Self { Self::new(Water) }
-    pub fn wood() -> Self { Self::new(Wood) }
-    pub fn unavailable() -> Self { Self::new(Unavailable) }
+    fn empty() -> Self { Self::new(Empty) }
+    fn sand() -> Self { Self::new(Sand) }
+    fn water() -> Self { Self::new(Water) }
+    fn wood() -> Self { Self::new(Wood) }
+    fn unavailable() -> Self { Self::new(Unavailable) }
     
     fn set_touched(&mut self, set: bool) { self.flags.set(CellFlags::TOUCHED, set) }
     fn touched(&self) -> bool { self.flags.contains(CellFlags::TOUCHED) }
 
-    pub fn char(&self) -> char {
+    fn char(&self) -> char {
         match self.id {
             Empty => ' ',
             Sand => '.',
@@ -337,7 +334,7 @@ impl From<CellId> for Cell {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CellId {
+enum CellId {
     Empty = 0,
     Sand = 1,
     Water = 2,
@@ -357,7 +354,7 @@ struct MyGame {
 }
 
 impl MyGame {
-    pub fn new(ctx: &mut Context) -> MyGame {
+    fn new(ctx: &mut Context) -> MyGame {
         let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
         let scale = 8;
         let w = size.width as u32 / scale;
@@ -370,7 +367,7 @@ impl MyGame {
             paint_secondary_id: Empty,
             paint_size: 4,
             scale,
-            paused: true,
+            paused: false,
         };
         game
     }
