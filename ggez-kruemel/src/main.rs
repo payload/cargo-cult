@@ -45,9 +45,25 @@ fn test_tick_cells() {
     cells.paint(4, 10, Water);
     cells.paint(6, 10, Water);
 
-    println!("{}", cells.format());
-    cells.tick();
-    println!("{}", cells.format());
+    let mut frames: Vec<_> = (0..16).map(|_| {
+        let frame: Vec<String> = cells.format().split('\n').map(String::from).collect();
+        cells.tick();
+        frame.into_iter()
+    }).collect();
+
+    let mut end = false;
+    while !end {
+        let mut line = String::new();
+        for frame in frames.iter_mut() {
+            if let Some(part) = frame.next() {
+                line.push_str(&part);
+                line.push_str(" ");
+            } else {
+                end = true;
+            }
+        }
+        println!("{}", line);
+    }
 }
 
 struct Cells {
