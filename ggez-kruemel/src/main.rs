@@ -297,6 +297,54 @@ impl Cells {
     }
 }
 
+
+struct CellRef<'cells> {
+    cell: Cell,
+    idx: usize,
+    x: X,
+    y: Y,
+    cells: &'cells Cells,
+}
+
+impl<'cells> CellRef<'cells> {
+    fn new(x: X, y: Y, cells: &'cells Cells) -> Self {
+        if let Some(idx) = cells.checked_idx(x, y) {
+            Self { x, y, cells, idx, cell: cells.cells[idx] }
+        } else {
+            Self { x, y, cells, idx: 0, cell: Cell::unavailable() }
+        }
+    }
+
+    fn other(&self, dx: X, dy: Y) -> Self { Self::new(self.x + dx, self.y + dy, self.cells) }
+    fn other_v(&self, d: &(X, Y)) -> Self { Self::new(self.x + d.0, self.y + d.1, self.cells) }
+
+    fn ul(&self) -> Self { self.other(-1, -1) }
+    fn u(&self) -> Self { self.other(0, -1) }
+    fn ur(&self) -> Self { self.other(1, -1) }
+    fn l(&self) -> Self { self.other(-1, 0) }
+    fn r(&self) -> Self { self.other(1, 0) }
+    fn dl(&self) -> Self { self.other(-1, 1) }
+    fn d(&self) -> Self { self.other(0, 1) }
+    fn dr(&self) -> Self { self.other(1, 1) }
+
+    fn id(&self) -> CellId { self.cell.id }
+
+    fn empty(&self) -> bool { self.id() == Empty }
+    fn water(&self) -> bool { self.id() == Empty }
+    fn sand(&self) -> bool { self.id() == Empty }
+    fn wood(&self) -> bool { self.id() == Empty }
+    fn falling(&self) -> bool { self.water() || self.sand() }
+}
+
+fn test_cell_ref(mut cells: Cells) {
+    let c = CellRef::new(5, 5, &cells);
+    let cl = c.l();
+    let l = cl.id();
+    let cr = c.r();
+    let r = cr.id();
+    cells.cells[5] = Cell::unavailable();
+}
+
 // #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Cell {
