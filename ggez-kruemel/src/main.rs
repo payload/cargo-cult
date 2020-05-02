@@ -1,7 +1,7 @@
 // Copyright (c) 2020 Gilbert Röhrbein
 use ggez::event::{self, EventHandler};
 use ggez::graphics;
-use ggez::input::keyboard::{self, KeyCode, KeyMods};
+use ggez::input::keyboard::{KeyCode, KeyMods};
 use ggez::{Context, ContextBuilder, GameResult};
 
 use rand::prelude::*;
@@ -49,14 +49,6 @@ fn test_tick_cells() {
     println!("{}", cells.format());
 }
 
-/*
-else if ul == Water && r(0.3) {
-            self.swap_touch(idx, x - 1, y + 1);
-        } else if ur == Water && r(0.3) {
-            self.swap_touch(idx, x + 1, y + 1);
-        } 
-        */
-
 pub struct Cells {
     width: usize,
     height: usize,
@@ -77,9 +69,7 @@ impl Cells {
     }
 
     fn sim_update(&mut self) {
-        for i in 0..1 {
-            self.tick();
-        }
+        self.tick();
     }
 
     fn tick(&mut self) {
@@ -202,11 +192,6 @@ impl Cells {
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
-        let cell = self.mut_cell(x, y);
-        let spread = cell.flags.contains(CellFlags::SPREAD);
-        cell.flags.remove(CellFlags::SPREAD);
-        cell.flags.remove(CellFlags::HIDDEN);
-
         let d = self.cell_id(x, y + 1);
         let dl = self.cell_id(x - 1, y + 1);
         let dr = self.cell_id(x + 1, y + 1);
@@ -297,15 +282,13 @@ impl Cells {
         self.cells[b_idx] = a;
         (x, y)
     }
-
-    fn is_empty(&self, x: X, y: Y) -> bool {
-        self.cell_id(x, y) == Empty
-    }
 }
 
-#[repr(C)]
+// #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cell {
+    vx: f32,
+    vy: f32,
     random: f32,
     flags: CellFlags,
     pub id: CellId,
@@ -313,42 +296,21 @@ pub struct Cell {
 
 bitflags! {
     struct CellFlags: u8 {
-        const EMPTY   = 0b00000000;
         const TOUCHED = 0b00000001;
-        const SURFACE = 0b00000010;
-        const HIDDEN  = 0b00000100;
-        const SPREAD  = 0b00001000;
     }
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { random: random(), flags: CellFlags::EMPTY, id } }
+    fn new(id: CellId) -> Self { Self { vx: 0.0, vy: 0.0, random: random(), flags: CellFlags::empty(), id } }
     pub fn empty() -> Self { Self::new(Empty) }
     pub fn sand() -> Self { Self::new(Sand) }
     pub fn water() -> Self { Self::new(Water) }
     pub fn wood() -> Self { Self::new(Wood) }
     pub fn unavailable() -> Self { Self::new(Unavailable) }
-
-    fn set_flag(&mut self, flag: CellFlags, set: bool) {
-        if set {
-            self.flags |= flag;
-        } else {
-            self.flags -= flag;
-        }
-    }
-    fn flag(&self, flag: CellFlags) -> bool {
-        self.flags & flag == flag
-    }
-
-    pub fn set_hidden(&mut self, set: bool) { self.set_flag(CellFlags::HIDDEN, set) }
-    pub fn hidden(&self) -> bool { self.flag(CellFlags::HIDDEN) }
-
-    pub fn set_touched(&mut self, set: bool) { self.set_flag(CellFlags::TOUCHED, set) }
-    pub fn touched(&self) -> bool { self.flag(CellFlags::TOUCHED) }
-
-    pub fn set_surface(&mut self, set: bool) { self.set_flag(CellFlags::SURFACE, set) }
-    pub fn surface(&self) -> bool { self.flag(CellFlags::SURFACE) }
+    
+    fn set_touched(&mut self, set: bool) { self.flags.set(CellFlags::TOUCHED, set) }
+    fn touched(&self) -> bool { self.flags.contains(CellFlags::TOUCHED) }
 
     pub fn char(&self) -> char {
         match self.id {
@@ -445,7 +407,7 @@ impl EventHandler for MyGame {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::WHITE);
-        self.draw_black_pixels(ctx)?;
+        self.draw(ctx)?;
         graphics::present(ctx)
     }
 
@@ -490,7 +452,7 @@ impl EventHandler for MyGame {
 }
 
 impl MyGame {
-    fn draw_black_pixels(&mut self, ctx: &mut Context) -> GameResult<()> {
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         let s = self.scale as i32;
         let mut builder = graphics::MeshBuilder::new();
 
@@ -506,21 +468,9 @@ impl MyGame {
             for x in 0..self.cells.w() {
                 let cell = self.cells.cell(x, y);
                 match cell.id {
-                    Sand => {
-                        let color = Hsl::new(40.0, 1.0, 0.3 + 0.2 * cell.random);
-                        draw(x, y, Srgb::from(color).into_components());
-                    },
-                    Water => if keyboard::is_key_pressed(ctx, KeyCode::H) && cell.hidden() {
-                        let color = Hsl::new(180.0, 1.0, 0.3 + 0.2 * cell.random);
-                        draw(x, y, Srgb::from(color).into_components());
-                    } else if !cell.hidden() {
-                        let color = Hsl::new(220.0, 1.0, 0.3 + 0.2 * cell.random);
-                        draw(x, y, Srgb::from(color).into_components());
-                    },
-                    Wood => {
-                        let color = Hsl::new(20.0, 0.6, 0.2 + 0.2 * cell.random);
-                        draw(x, y, Srgb::from(color).into_components());
-                    },
+                    Sand => draw(x, y, rgb(hsl(40.0, 1.0, 0.3 + 0.2 * cell.random))),
+                    Wood => draw(x, y, rgb(hsl(20.0, 0.6, 0.2 + 0.2 * cell.random))),
+                    Water => draw(x, y, rgb(hsl(220.0, 1.0, 0.3 + 0.2 * cell.random))),
                     _ => {},
                 }
             }
@@ -532,6 +482,14 @@ impl MyGame {
             Ok(())
         }
     }
+}
+
+fn hsl(h: f32, s: f32, l: f32) -> Hsl<> {
+    Hsl::new(h, s, l)
+}
+
+fn rgb(hsl: Hsl<>) -> (f32, f32, f32) {
+    Srgb::from(hsl).into_components()
 }
 
 fn for_circle<F>(d: u32, f: &mut F)
