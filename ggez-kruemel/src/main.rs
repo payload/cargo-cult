@@ -14,7 +14,7 @@ use palette::*;
 extern crate bitflags;
 
 fn main() {
-    test_tick_cells();
+    experiment_tick_cells();
 
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .window_setup(ggez::conf::WindowSetup {
@@ -37,33 +37,20 @@ fn main() {
 
 use CellId::*;
 
-fn test_tick_cells() {
+fn experiment_tick_cells() {
     let mut cells = Cells::new(11, 11);
-    cells.paint(2, 10, Sand);
-    cells.paint(8, 10, Sand);
-    cells.paint(5, 10, Water);
-    cells.paint(4, 10, Water);
-    cells.paint(6, 10, Water);
+    //cells.paint(5, 0, Sand);
+    cells.paint(5, 1, Sand);
+    cells.paint(5, 2, Sand);
+    print_frames(16, cells);
+}
 
-    let mut frames: Vec<_> = (0..16).map(|_| {
-        let frame: Vec<String> = cells.format().split('\n').map(String::from).collect();
-        cells.tick();
-        frame.into_iter()
-    }).collect();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut end = false;
-    while !end {
-        let mut line = String::new();
-        for frame in frames.iter_mut() {
-            if let Some(part) = frame.next() {
-                line.push_str(&part);
-                line.push_str(" ");
-            } else {
-                end = true;
-            }
-        }
-        println!("{}", line);
-    }
+    #[test]
+    fn test_tick_cells() { experiment_tick_cells(); }
 }
 
 struct Cells {
@@ -148,9 +135,6 @@ impl Cells {
     fn idx(&self, x: X, y: Y) -> usize {
         (y * self.w() + x) as usize
     }
-    fn cell(&self, x: X, y: Y) -> &Cell {
-        &self.cells[self.idx(x, y)]
-    }
     fn in_bounds(&self, x: X, y: Y) -> bool {
         x >= 0 && x < self.w() && y >= 0 && y < self.h()
     }
@@ -172,34 +156,45 @@ impl Cells {
     }
 
     fn cell_id(&self, x: X, y: Y) -> CellId {
+        self.cell(x, y).id
+    }
+
+    fn cell(&self, x: X, y: Y) -> Cell {
         if let Some(idx) = self.checked_idx(x, y) {
             if !self.cells[idx].touched() {
-                return self.cells[idx].id;
+                return self.cells[idx];
             } 
         }
-        Unavailable
+        Cell::unavailable()
     }
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize)  -> (X, Y) {
-        let d = self.cell_id(x, y + 1);
-        let dl = self.cell_id(x - 1, y + 1);
-        let dr = self.cell_id(x + 1, y + 1);
-        let l = self.cell_id(x - 1, y);
-        let r = self.cell_id(x + 1, y);
-        let bias: bool = random();
-
-        // fall down
-        if d == Empty {
-            return self.swap_touch(idx, x, y + 1);
+        let mut cell = self.cells[idx];
+        let mut y = y;
+        let mut d = self.cell(x, y + 1);
+        
+        // vy > 0 may be okay, maybe try also d.dy > cell.dy and Empty.dy = 127
+        if !(d.id == Empty || d.vy > 0) {
+            return (x, y);
         }
 
-        let left = dl == Empty && l != Sand && l != Water;
-        let right = dr == Empty && r != Sand && r != Water;
-        if (left && right && bias) || (left && !right) {
-            return self.swap_touch(idx, x - 1, y + 1);
-        } else if right {
-            return self.swap_touch(idx, x + 1, y + 1);
+        cell.vy += 1;
+        cell.dy += cell.vy;
+
+        while cell.dy > 10 && d.id == Empty {
+            cell.dy -= 10;
+            self.cells[idx] = self.cells[self.idx(x, y + 1)];
+            y += 1;
+            d = self.cell(x, y + 1);
         }
+
+        if d.id != Empty {
+            cell.dy = d.dy;
+            cell.vy = d.vy;
+        }
+
+        let idx = self.idx(x, y);
+        self.cells[idx] = cell;
 
         (x, y)
     }
@@ -297,59 +292,12 @@ impl Cells {
     }
 }
 
-
-struct CellRef<'cells> {
-    cell: Cell,
-    idx: usize,
-    x: X,
-    y: Y,
-    cells: &'cells Cells,
-}
-
-impl<'cells> CellRef<'cells> {
-    fn new(x: X, y: Y, cells: &'cells Cells) -> Self {
-        if let Some(idx) = cells.checked_idx(x, y) {
-            Self { x, y, cells, idx, cell: cells.cells[idx] }
-        } else {
-            Self { x, y, cells, idx: 0, cell: Cell::unavailable() }
-        }
-    }
-
-    fn other(&self, dx: X, dy: Y) -> Self { Self::new(self.x + dx, self.y + dy, self.cells) }
-    fn other_v(&self, d: &(X, Y)) -> Self { Self::new(self.x + d.0, self.y + d.1, self.cells) }
-
-    fn ul(&self) -> Self { self.other(-1, -1) }
-    fn u(&self) -> Self { self.other(0, -1) }
-    fn ur(&self) -> Self { self.other(1, -1) }
-    fn l(&self) -> Self { self.other(-1, 0) }
-    fn r(&self) -> Self { self.other(1, 0) }
-    fn dl(&self) -> Self { self.other(-1, 1) }
-    fn d(&self) -> Self { self.other(0, 1) }
-    fn dr(&self) -> Self { self.other(1, 1) }
-
-    fn id(&self) -> CellId { self.cell.id }
-
-    fn empty(&self) -> bool { self.id() == Empty }
-    fn water(&self) -> bool { self.id() == Empty }
-    fn sand(&self) -> bool { self.id() == Empty }
-    fn wood(&self) -> bool { self.id() == Empty }
-    fn falling(&self) -> bool { self.water() || self.sand() }
-}
-
-fn test_cell_ref(mut cells: Cells) {
-    let c = CellRef::new(5, 5, &cells);
-    let cl = c.l();
-    let l = cl.id();
-    let cr = c.r();
-    let r = cr.id();
-    cells.cells[5] = Cell::unavailable();
-}
-
-// #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Cell {
-    vx: f32,
-    vy: f32,
+    vx: i8,
+    vy: i8,
+    dx: i8,
+    dy: i8,
     random: f32,
     flags: CellFlags,
     id: CellId,
@@ -363,8 +311,8 @@ bitflags! {
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { vx: 0.0, vy: 0.0, random: random(), flags: CellFlags::empty(), id } }
-    fn empty() -> Self { Self::new(Empty) }
+    fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, random: random(), flags: CellFlags::empty(), id } }
+    fn empty() -> Self { Self { vy: 10, ..Self::new(Empty) } }
     fn sand() -> Self { Self::new(Sand) }
     fn water() -> Self { Self::new(Water) }
     fn wood() -> Self { Self::new(Wood) }
@@ -564,5 +512,27 @@ where
                 f(dx, dy);
             }
         }
+    }
+}
+
+fn print_frames(n: usize, mut cells: Cells) {
+    let mut frames: Vec<_> = (0..n).map(|_| {
+        let frame: Vec<String> = cells.format().split('\n').map(String::from).collect();
+        cells.tick();
+        frame.into_iter()
+    }).collect();
+
+    let mut end = false;
+    while !end {
+        let mut line = String::new();
+        for frame in frames.iter_mut() {
+            if let Some(part) = frame.next() {
+                line.push_str(&part);
+                line.push_str(" ");
+            } else {
+                end = true;
+            }
+        }
+        println!("{}", line);
     }
 }
