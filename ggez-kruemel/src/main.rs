@@ -182,8 +182,8 @@ impl Cells {
             return (x, y);
         }
 
-        cell.vy += 1;
-        cell.dy += cell.vy;
+        cell.vy = cell.vy.saturating_add(1);
+        cell.dy = cell.dy.saturating_add(cell.vy);
 
         loop {
             let d = self.cell(x, y + 1);
