@@ -175,7 +175,7 @@ impl Cells {
         let mut cell = self.cells[idx];
         let mut x = x;
         let mut y = y;
-        let mut d = self.cell(x, y + 1);
+        let d = self.cell(x, y + 1);
         
         // vy > 0 may be okay, maybe try also d.dy > cell.dy and Empty.dy = 127
         if !(d.id == Empty || d.vy > 0) {
@@ -194,7 +194,12 @@ impl Cells {
             let dr_empty = dr.id == Empty;
 
             if !(cell.dy >= 10 && (d_empty || dl_empty || dr_empty)) {
-                break
+                if cell.dy >= 10 && d.id != Empty {
+                    cell.dy = d.dy;
+                    cell.vy = d.vy;
+                }
+
+                break;
             }
 
             if d_empty {
@@ -212,11 +217,6 @@ impl Cells {
                 x += 1;
                 y += 1;
             }
-        }
-
-        if cell.dy >= 10 && d.id != Empty {
-            cell.dy = d.dy;
-            cell.vy = d.vy;
         }
 
         let idx = self.idx(x, y);
