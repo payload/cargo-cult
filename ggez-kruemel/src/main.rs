@@ -151,9 +151,10 @@ impl Cells {
     }
 
     fn paint(&mut self, x: X, y: Y, id: CellId) {
-        if self.in_bounds(x, y) {
-            let idx = self.idx(x, y);
-            self.cells[idx] = id.into();
+        if let Some(idx) = self.checked_idx(x, y) {
+            if self.cells[idx].id != id {
+                self.cells[idx] = id.into();
+            }
         }
     }
 
@@ -420,13 +421,13 @@ impl EventHandler for MyGame {
 
         if button_pressed(ctx, MouseButton::Left) {
             for_circle(self.paint_size, &mut |dx, dy| {
-                if rand(0.9) {
+                if rand(0.8) {
                     self.cells.paint(x + dx, y + dy, self.paint_primary_id);
                 }
             });
         } else if button_pressed(ctx, MouseButton::Right) {
             for_circle(self.paint_size, &mut |dx, dy| {
-                if rand(0.9) {
+                if rand(0.8) {
                     self.cells.paint(x + dx, y + dy, self.paint_secondary_id);
                 }
             });
