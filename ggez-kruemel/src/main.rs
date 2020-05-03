@@ -42,7 +42,9 @@ fn experiment_tick_cells() {
     //cells.paint(5, 0, Sand);
     cells.paint(5, 1, Sand);
     cells.paint(5, 2, Sand);
-    print_frames(16, cells);
+    cells.paint(5, 4, Wood);
+    print_frames(4, &mut cells);
+    print_frames(16, &mut cells);
 }
 
 #[cfg(test)]
@@ -170,6 +172,7 @@ impl Cells {
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize)  -> (X, Y) {
         let mut cell = self.cells[idx];
+        let mut x = x;
         let mut y = y;
         let mut d = self.cell(x, y + 1);
         
@@ -181,14 +184,36 @@ impl Cells {
         cell.vy += 1;
         cell.dy += cell.vy;
 
-        while cell.dy > 10 && d.id == Empty {
-            cell.dy -= 10;
-            self.cells[idx] = self.cells[self.idx(x, y + 1)];
-            y += 1;
-            d = self.cell(x, y + 1);
+        loop {
+            let d = self.cell(x, y + 1);
+            let dl = self.cell(x - 1, y + 1);
+            let dr = self.cell(x + 1, y + 1);
+            let d_empty = d.id == Empty;
+            let dl_empty = dl.id == Empty;
+            let dr_empty = dr.id == Empty;
+
+            if !(cell.dy >= 10 && (d_empty || dl_empty || dr_empty)) {
+                break
+            }
+
+            if d_empty {
+                cell.dy -= 10;
+                self.cells[idx] = self.cells[self.idx(x, y + 1)];
+                y += 1;
+            } else if (dl_empty && dl_empty && random()) || (dl_empty && !dr_empty) {
+                cell.dy -= 10;
+                self.cells[idx] = self.cells[self.idx(x - 1, y + 1)];
+                x -= 1;
+                y += 1;
+            } else if dr_empty {
+                cell.dy -= 10;
+                self.cells[idx] = self.cells[self.idx(x + 1, y + 1)];
+                x += 1;
+                y += 1;
+            }
         }
 
-        if d.id != Empty {
+        if cell.dy >= 10 && d.id != Empty {
             cell.dy = d.dy;
             cell.vy = d.vy;
         }
@@ -515,7 +540,7 @@ where
     }
 }
 
-fn print_frames(n: usize, mut cells: Cells) {
+fn print_frames(n: usize, cells: &mut Cells) {
     let mut frames: Vec<_> = (0..n).map(|_| {
         let frame: Vec<String> = cells.format().split('\n').map(String::from).collect();
         cells.tick();
