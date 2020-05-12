@@ -201,19 +201,12 @@ impl Cells {
         Cell::unavailable()
     }
 
-    fn update_sand(&mut self, x: X, y: Y, idx: usize)  -> (X, Y) {
-        let mut cell: Cell = self.cells[idx];
-        assert_eq!(cell.id, Sand);
-        
+    #[inline(always)]
+    fn update_sand_acceleration(&self, x: X, y: Y, mut cell: Cell) -> Cell {
         let vx = cell.vx as i32;
         let vy = cell.vy as i32;
         let (h, v) = next_pixel(vx, vy + 1);
         let d = self.cell(x + h, y + v);
-
-        println!("{} {}", x, y);
-        if x == 5 && y == 18 {
-            println!("{} {}", h, v);
-        }
 
         if d.id == Empty {
             cell.vy = cell.vy.saturating_add(1);
@@ -240,15 +233,24 @@ impl Cells {
                 }
             }
         } else if d.id == Unavailable {
-            println!("A Unavailable");
+            
         }
+
+        cell
+    }
+
+    fn update_sand(&mut self, x: X, y: Y, idx: usize) {
+        let mut cell: Cell = self.cells[idx];
+        assert_eq!(cell.id, Sand);
+        
+        cell = self.update_sand_acceleration(x, y, cell);
         
         cell.dx = cell.dx.saturating_add(cell.vx);
         cell.dy = cell.dy.saturating_add(cell.vy);
 
         if !(cell.dx.abs() >= 10 || cell.dy.abs() >= 10) {
             self.cells[idx] = cell;
-            return (x, y);
+            return;
         }
 
         let mut dx = cell.dx as i32;
@@ -316,8 +318,6 @@ impl Cells {
                 }
             }
         }
-
-        (x, y)
     }
 
     fn update_wood(&mut self, x: X, y: Y, _idx: usize) {
