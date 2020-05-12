@@ -76,6 +76,7 @@ struct Cells {
     height: usize,
     cells: Vec<Cell>,
     tick_n: usize,
+    loop_count: usize,
 }
 
 type X = i32;
@@ -87,11 +88,14 @@ impl Cells {
             height,
             cells: vec![Cell::empty(); width * height],
             tick_n: 0,
+            loop_count: 0,
         }
     }
 
     fn sim_update(&mut self) {
+        self.loop_count = 0;
         self.tick();
+        println!("loop_count {}", self.loop_count);
     }
 
     fn tick(&mut self) {
@@ -121,19 +125,6 @@ impl Cells {
                     _ => {},
                 }
             }
-        }
-
-        let mut vsumx = 0;
-        let mut vsumy = 0;
-        for cell in self.cells.iter() {
-            vsumx += cell.vx as i32;
-            vsumy += cell.vy as i32;
-        }
-        //println!("vsum   {} {}", vsumx, vsumy);
-
-        let mut count = [0; 256];
-        for cell in self.cells.iter_mut() {
-            count[cell.id as usize] += 1;
         }
 
         self.tick_n += 1;
@@ -213,9 +204,13 @@ impl Cells {
             self.cells[poo].flags.insert(CellFlags::V_FREE);
         }
 
+        let accel = 1;
         if d.id == Empty {
-            cell.vy = cell.vy.saturating_add(1);
+            cell.vy = cell.vy.saturating_add(accel);
         } else if d.id == Sand {
+            if d.vy > cell.vy {
+                cell.vy += (d.vy - cell.vy).min(accel);
+            } else
             // If sand stands still v=0, try to ripple down artificially.
             // Alternative idea:
             //  If sand stands perfectly still v=0 d=0, don't ripple down.
@@ -224,14 +219,14 @@ impl Cells {
                 let empty_l = self.cell(x - 1, y + 1).id == Empty;
                 let empty_r = self.cell(x + 1, y + 1).id == Empty;
                 if (empty_l && empty_r && random()) || (empty_l && !empty_r) {
-                    cell.vx -= 1;
-                    cell.vy += 1;
+                    cell.vx -= accel;
+                    cell.vy += accel;
                     if cell.dy == 0 { // random advantage
                         cell.dy = (cell.random * 5.0).floor() as i8;
                     }
                 } else if empty_r {
-                    cell.vx += 1;
-                    cell.vy += 1;
+                    cell.vx += accel;
+                    cell.vy += accel;
                     if cell.dy == 0 { // random advantage
                         cell.dy = (cell.random * 5.0).floor() as i8;
                     }
@@ -253,7 +248,9 @@ impl Cells {
         cell.dx = cell.dx.saturating_add(cell.vx);
         cell.dy = cell.dy.saturating_add(cell.vy);
 
-        if !(cell.dx.abs() >= 10 || cell.dy.abs() >= 10) {
+        let ten: i32 = 10;
+
+        if !(cell.dx.abs() as i32 >= ten || cell.dy.abs() as i32 >= ten) {
             self.cells[idx] = cell;
             return;
         }
@@ -266,24 +263,22 @@ impl Cells {
         let mut y1 = y;
         let mut idx0;
 
+        let mut loop_count = 0;
         loop {
+            loop_count += 1;
             idx0 = self.idx(x0, y0);
-            let ddx = dx / 10;
-            let ddy = dy / 10;
+            let ddx = dx / ten;
+            let ddy = dy / ten;
 
             if ddx == 0 && ddy == 0 {
                 cell.dx = dx as i8;
                 cell.dy = dy as i8;
                 self.cells[idx0] = cell;
-                println!("{:?}", cell);
                 break;
             }
 
             let (h, v) = next_pixel(ddx, ddy);
             assert!(h != 0 || v != 0);
-            if ddx.abs() == ddy.abs() {
-                assert!(h != 0 && v != 0);
-            }
             x1 = x0 + h;
             y1 = y0 + v;
             
@@ -296,45 +291,36 @@ impl Cells {
                 y0 = y1;
                 
                 if h != 0 {
-                    dx -= 10 * dx.signum();
+                    dx -= ten * dx.signum();
                     cell.vx = (cell.vx * 2) / 3;
                 }
                 if v != 0 {
-                    dy -= 10 * dy.signum();
+                    dy -= ten * dy.signum();
                 }
 
             } else if next.id == Sand {
+                // TODO bad
                 self.cells[idx1].flags.insert(CellFlags::TRIED);
-                if h == 0 && v != 0 {
-                    dy = dy.signum() * dx.abs();
-                    
-                    if cell.vx == 0 {
-                        cell.vx = random_signum(0) as i8;
-                    }
-                    cell.vy = cell.vy.signum() * cell.vx.abs();
-                } else if h != 0 && v == 0 {
-                    dx %= 10;
-                    cell.vx = 0;
-                    cell.vy /= 2;
-                } else if h != 0 && v != 0 {
-                    if cell.vx.abs() >= cell.vy.abs() {
-                        dy /= 2;
-                    }
-                    if cell.vx.abs() <= cell.vy.abs() {
-                        dx /= 2;
-                    }
+                if h != 0 {
+                    dx -= 1 * dx.signum();
+                    cell.vx = (cell.vx * 2) / 3;
+                }
+                if v != 0 {
+                    dy -= 1 * dy.signum();
+                    cell.vy = (cell.vy * 2) / 3;
                 }
             } else {
                 if h != 0 {
-                    dx %= 10;
+                    dx %= ten;
                     cell.vx = 0;
                 }
                 if v != 0 {
-                    dy %= 10;
+                    dy %= ten;
                     cell.vy = 0;
                 }
             }
         }
+        self.loop_count = self.loop_count.max(loop_count);
     }
 
     fn update_wood(&mut self, x: X, y: Y, _idx: usize) {
@@ -519,8 +505,10 @@ impl MyGame {
     fn new(ctx: &mut Context) -> MyGame {
         let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
         let scale = 8;
-        let w = 10;
-        let h = 20;
+        let w = size.width as i32 / scale;
+        let h = size.height as i32 / scale;
+        //let w = 10;
+        //let h = 20;
         let cells = Cells::new(w as usize, h as usize);
 
         let mut game = MyGame {
@@ -571,7 +559,7 @@ impl EventHandler for MyGame {
 
         if !self.paused {
             self.cells.sim_update();
-            self.paused = true;
+            // self.paused = true;
         }
 
         Ok(())
@@ -645,10 +633,12 @@ impl MyGame {
             }
         }
 
-        for y in 0..=self.cells.h() {
-            for x in 0..=self.cells.w() {
-                self.cell_debug(ctx, x as f32, y as f32, &self.cells.cell(x, y));
-                
+        if self.cells.w() < 20 {
+            for y in 0..=self.cells.h() {
+                for x in 0..=self.cells.w() {
+                    self.cell_debug(ctx, x as f32, y as f32, &self.cells.cell(x, y));
+                    
+                }
             }
         }
 
