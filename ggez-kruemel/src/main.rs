@@ -5,8 +5,8 @@ use ggez::input::keyboard::{KeyCode, KeyMods};
 use ggez::{Context, ContextBuilder, GameResult};
 
 use rand::prelude::*;
-
 use palette::*;
+use line_drawing::*;
 
 // use std::default;
 
@@ -39,12 +39,28 @@ use CellId::*;
 
 fn experiment_tick_cells() {
     let mut cells = Cells::new(11, 11);
-    //cells.paint(5, 0, Sand);
-    cells.paint(5, 1, Sand);
-    cells.paint(5, 2, Sand);
-    cells.paint(5, 4, Wood);
-    print_frames(4, &mut cells);
-    print_frames(16, &mut cells);
+    
+    cells.paint(5, 10, Sand);
+    cells.paint(5, 9, Sand);
+    cells.paint(5, 8, Sand);
+    cells.paint(4, 10, Sand);
+    cells.paint(4, 9, Sand);
+    cells.paint(4, 8, Sand);
+    cells.paint(3, 10, Sand);
+    cells.paint(3, 9, Sand);
+    cells.paint(3, 8, Sand);
+
+    //let idx = cells.idx(5, 5);
+    //cells.cells[idx] = Cell { dx: -9, vx: -10, ..Cell::sand() };
+
+    //cells.paint(5, 5, Wood);
+
+    print_frames(7, &mut cells);
+    print_frames(2, &mut cells);
+    print_frames(2, &mut cells);
+    //print_frames(8, &mut cells);
+    //print_frames(8, &mut cells);
+    //print_frames(8, &mut cells);
 }
 
 #[cfg(test)]
@@ -95,10 +111,19 @@ impl Cells {
                 match cell.id {
                     Sand if update_sand => { self.update_sand(x, y, idx); },
                     Water => { self.update_water(x, y, idx); },
+                    Wood => { self.update_wood(x, y, idx); }
                     _ => {},
                 }
             }
         }
+
+        let mut vsumx = 0;
+        let mut vsumy = 0;
+        for cell in self.cells.iter() {
+            vsumx += cell.vx as i32;
+            vsumy += cell.vy as i32;
+        }
+        //println!("vsum   {} {}", vsumx, vsumy);
 
         let mut count = [0; 256];
         for cell in self.cells.iter_mut() {
@@ -114,16 +139,17 @@ impl Cells {
         let h = self.height;
         let len = (w + 3) * (h + 2);
         let mut str = String::with_capacity(len);
-        str.push_str(&"-".repeat(self.width + 2));
+        str.push_str(&"-".repeat(self.width + 3));
         str.push('\n');
         for y in 0..h {
+            str.push( y.to_string().chars().last().unwrap());
             str.push('|');
             for x in 0..w {
                 str.push(self.cell(x as X, y as Y).char())
             }
             str.push_str("|\n");
         }
-        str.push_str(&"-".repeat(w + 2));
+        str.push_str(&"-".repeat(w + 3));
         str.push('\n');
         str
     }
@@ -172,57 +198,108 @@ impl Cells {
     }
 
     fn update_sand(&mut self, x: X, y: Y, idx: usize)  -> (X, Y) {
-        let mut cell = self.cells[idx];
-        let mut x = x;
-        let mut y = y;
-        let d = self.cell(x, y + 1);
+        let mut cell: Cell = self.cells[idx];
+        assert_eq!(cell.id, Sand);
         
-        // vy > 0 may be okay, maybe try also d.dy > cell.dy and Empty.dy = 127
-        if !(d.id == Empty || d.vy > 0) {
+        let vx = cell.vx as i32;
+        let vy = cell.vy as i32;
+        let (h, v) = next_pixel(vx, vy + 1);
+        let d = self.cell(h, v);
+
+        println!("{} {}", h, v);
+
+        if d.id == Empty {
+            cell.vy = cell.vy.saturating_add(1);
+        } else if d.id == Sand {
+            println!("A Sand");
+        } else if d.id == Unavailable {
+            println!("A Unavailable");
+        }
+        
+        cell.dx = cell.dx.saturating_add(cell.vx);
+        cell.dy = cell.dy.saturating_add(cell.vy);
+
+        if !(cell.dx.abs() >= 10 || cell.dy.abs() >= 10) {
+            self.cells[idx] = cell;
             return (x, y);
         }
 
-        cell.vy = cell.vy.saturating_add(1);
-        cell.dy = cell.dy.saturating_add(cell.vy);
+        let mut dx = cell.dx as i32;
+        let mut dy = cell.dy as i32;
+        let mut x0 = x;
+        let mut y0 = y;
+        let mut x1 = x;
+        let mut y1 = y;
+        let mut idx0;
 
         loop {
-            let d = self.cell(x, y + 1);
-            let dl = self.cell(x - 1, y + 1);
-            let dr = self.cell(x + 1, y + 1);
-            let d_empty = d.id == Empty;
-            let dl_empty = dl.id == Empty;
-            let dr_empty = dr.id == Empty;
+            idx0 = self.idx(x0, y0);
+            let ddx = dx / 10;
+            let ddy = dy / 10;
 
-            if !(cell.dy >= 10 && (d_empty || dl_empty || dr_empty)) {
-                if cell.dy >= 10 && d.id != Empty {
-                    cell.dy = d.dy;
-                    cell.vy = d.vy;
-                }
-
+            if ddx == 0 && ddy == 0 {
+                cell.dx = dx as i8;
+                cell.dy = dy as i8;
+                self.cells[idx0] = cell;
+                println!("{:?}", cell);
                 break;
             }
 
-            if d_empty {
-                cell.dy -= 10;
-                self.cells[idx] = self.cells[self.idx(x, y + 1)];
-                y += 1;
-            } else if (dl_empty && dl_empty && random()) || (dl_empty && !dr_empty) {
-                cell.dy -= 10;
-                self.cells[idx] = self.cells[self.idx(x - 1, y + 1)];
-                x -= 1;
-                y += 1;
-            } else if dr_empty {
-                cell.dy -= 10;
-                self.cells[idx] = self.cells[self.idx(x + 1, y + 1)];
-                x += 1;
-                y += 1;
+            let (h, v) = next_pixel(ddx, ddy);
+            assert!(h != 0 || v != 0);
+            x1 = x0 + h;
+            y1 = y0 + v;
+            
+            let idx1 = self.idx(x1, y1);
+            let next = self.cell(x1, y1);
+            
+            if next.id == Empty {
+                self.cells[idx0] = self.cells[idx1];
+                x0 = x1;
+                y0 = y1;
+                
+                if h != 0 {
+                    dx -= 10 * dx.signum();
+                    cell.vx = (cell.vx * 2) / 3;
+                }
+                if v != 0 {
+                    dy -= 10 * dy.signum();
+                }
+
+            } else if next.id == Sand {
+                if (h == 0 && v != 0) || (h != 0 && v != 0 && random()) {
+                    cell.vx += random_signum(cell.vx as i32) as i8 * cell.vy / 2;
+                    cell.vy /= 2;
+                    dx += random_signum(cell.vx as i32) * dy / 2;
+                    dy = dy / 2;
+                } else if h != 0 {
+                    dx %= 10;
+                    cell.vx = 0;
+                    cell.vy /= 2;
+                }
+            } else {
+                if h != 0 {
+                    dx %= 10;
+                    cell.vx = 0;
+                }
+                if v != 0 {
+                    dy %= 10;
+                    cell.vy = 0;
+                }
             }
         }
 
-        let idx = self.idx(x, y);
-        self.cells[idx] = cell;
-
         (x, y)
+    }
+
+    fn update_wood(&mut self, x: X, y: Y, _idx: usize) {
+        if let Some(idx) = self.checked_idx(x, y - 1) {
+            let mut u = self.cell(x, y - 1);
+            if u.id == Sand {
+                u.vx = u.vx.saturating_add(-10);
+                self.cells[idx] = u;
+            }
+        }
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
@@ -338,7 +415,7 @@ bitflags! {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
     fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, random: random(), flags: CellFlags::empty(), id } }
-    fn empty() -> Self { Self { vy: 10, ..Self::new(Empty) } }
+    fn empty() -> Self { Self { ..Self::new(Empty) } }
     fn sand() -> Self { Self::new(Sand) }
     fn water() -> Self { Self::new(Water) }
     fn wood() -> Self { Self::new(Wood) }
@@ -543,9 +620,10 @@ where
 
 fn print_frames(n: usize, cells: &mut Cells) {
     let mut frames: Vec<_> = (0..n).map(|_| {
-        let frame: Vec<String> = cells.format().split('\n').map(String::from).collect();
+        let frame = cells.format();
+        // println!("{}", frame);
         cells.tick();
-        frame.into_iter()
+        frame.split('\n').map(String::from).collect::<Vec<_>>().into_iter()
     }).collect();
 
     let mut end = false;
@@ -560,5 +638,31 @@ fn print_frames(n: usize, cells: &mut Cells) {
             }
         }
         println!("{}", line);
+    }
+}
+
+fn random_signum(x: i32) -> i32 {
+    if x != 0 {
+        x.signum()
+    } else if random() {
+        1
+    } else {
+        -1
+    }
+}
+
+fn next_pixel(dx: i32, dy: i32) -> (i32, i32) {
+    if dy.abs() < dx.abs() {
+        if 2 * dy - dx > 0 {
+            (dx.signum(), dy.signum())
+        } else {
+            (dx.signum(), 0)
+        }
+    } else {
+        if 2 * dx - dy > 0 {
+            (dx.signum(), dy.signum())
+        } else {
+            (0, dy.signum())
+        }
     }
 }

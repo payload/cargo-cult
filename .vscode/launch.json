@@ -1,0 +1,103 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'ggez-sandspiel'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=ggez-sandspiel"
+                ],
+                "filter": {
+                    "name": "ggez-sandspiel",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ggez-sandspiel'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ggez-sandspiel",
+                    "--package=ggez-sandspiel"
+                ],
+                "filter": {
+                    "name": "ggez-sandspiel",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'ggez-sandspiel'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=ggez-sandspiel",
+                    "--package=ggez-sandspiel"
+                ],
+                "filter": {
+                    "name": "ggez-sandspiel",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ggez-kruemel'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ggez-kruemel",
+                    "--package=ggez-kruemel"
+                ],
+                "filter": {
+                    "name": "ggez-kruemel",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'ggez-kruemel'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=ggez-kruemel",
+                    "--package=ggez-kruemel",
+                    "--",
+                    "--nocapture"
+                ],
+                "filter": {
+                    "name": "ggez-kruemel",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
