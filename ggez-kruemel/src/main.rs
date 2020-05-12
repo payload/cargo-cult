@@ -105,6 +105,7 @@ impl Cells {
         for cell in self.cells.iter_mut() {
             cell.flags.remove(CellFlags::TOUCHED);
             cell.flags.remove(CellFlags::TRIED);
+            cell.flags.remove(CellFlags::V_FREE);
         }
 
         for y in bottom_to_top {
@@ -202,11 +203,15 @@ impl Cells {
     }
 
     #[inline(always)]
-    fn update_sand_acceleration(&self, x: X, y: Y, mut cell: Cell) -> Cell {
+    fn update_sand_acceleration(&mut self, x: X, y: Y, mut cell: Cell) -> Cell {
         let vx = cell.vx as i32;
         let vy = cell.vy as i32;
         let (h, v) = next_pixel(vx, vy + 1);
         let d = self.cell(x + h, y + v);
+        
+        if let Some(poo) = self.checked_idx(x + h, y + v) {
+            self.cells[poo].flags.insert(CellFlags::V_FREE);
+        }
 
         if d.id == Empty {
             cell.vy = cell.vy.saturating_add(1);
@@ -450,6 +455,7 @@ bitflags! {
     struct CellFlags: u8 {
         const TOUCHED = 0b00000001;
         const TRIED   = 0b00000010;
+        const V_FREE  = 0b00000100;
     }
 }
 
@@ -663,7 +669,7 @@ impl MyGame {
 
         if cell.id != Empty {
             graphics::draw(ctx, &graphics::Text::new(cell_text_debug(cell)), params).unwrap();
-        } else if cell.flags.contains(CellFlags::TRIED) {
+        } else if cell.flags.contains(CellFlags::V_FREE) {
             graphics::draw(ctx, &graphics::Text::new("x"), params).unwrap();
         }
     }
@@ -744,13 +750,13 @@ fn random_signum(x: i32) -> i32 {
 
 fn next_pixel(dx: i32, dy: i32) -> (i32, i32) {
     if dy.abs() < dx.abs() {
-        if 2 * dy - dx >= 0 {
+        if (2 * dy).abs() - dx.abs() >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (dx.signum(), 0)
         }
     } else if dy.abs() > dx.abs() {
-        if 2 * dx - dy >= 0 {
+        if (2 * dx).abs() - dy.abs() >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (0, dy.signum())
@@ -770,4 +776,19 @@ fn test_next_pixel() {
     assert_eq!(next_pixel( 1,  1), ( 1,  1));
     assert_eq!(next_pixel(-1,  0), (-1,  0));
     assert_eq!(next_pixel( 1,  0), ( 1,  0));
+
+    assert_eq!(next_pixel(-1, -2), (-1, -1));
+    assert_eq!(next_pixel( 1, -2), ( 1, -1));
+    assert_eq!(next_pixel(-1,  2), (-1,  1));
+    assert_eq!(next_pixel( 1,  2), ( 1,  1));
+
+    assert_eq!(next_pixel(-2, -1), (-1, -1));
+    assert_eq!(next_pixel(-2,  1), (-1,  1));
+    assert_eq!(next_pixel( 2, -1), ( 1, -1));
+    assert_eq!(next_pixel( 2,  1), ( 1,  1));
+
+    assert_eq!(next_pixel(-2, -2), (-1, -1));
+    assert_eq!(next_pixel(-2,  2), (-1,  1));
+    assert_eq!(next_pixel( 2, -2), ( 1, -1));
+    assert_eq!(next_pixel( 2,  2), ( 1,  1));
 }
