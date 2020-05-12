@@ -276,6 +276,9 @@ impl Cells {
 
             let (h, v) = next_pixel(ddx, ddy);
             assert!(h != 0 || v != 0);
+            if ddx.abs() == ddy.abs() {
+                assert!(h != 0 && v != 0);
+            }
             x1 = x0 + h;
             y1 = y0 + v;
             
@@ -297,15 +300,24 @@ impl Cells {
 
             } else if next.id == Sand {
                 self.cells[idx1].flags.insert(CellFlags::TRIED);
-                if (h == 0 && v != 0) || (h != 0 && v != 0 && random()) {
-                    cell.vx += random_signum(cell.vx as i32) as i8 * ((cell.vy * 2) / 3);
-                    cell.vy /= 3;
-                    dx += random_signum(cell.vx as i32) * ((dy * 2) / 3);
-                    dy = dy / 3;
-                } else if h != 0 {
+                if h == 0 && v != 0 {
+                    dy = dy.signum() * dx.abs();
+                    
+                    if cell.vx == 0 {
+                        cell.vx = random_signum(0) as i8;
+                    }
+                    cell.vy = cell.vy.signum() * cell.vx.abs();
+                } else if h != 0 && v == 0 {
                     dx %= 10;
                     cell.vx = 0;
                     cell.vy /= 2;
+                } else if h != 0 && v != 0 {
+                    if cell.vx.abs() >= cell.vy.abs() {
+                        dy /= 2;
+                    }
+                    if cell.vx.abs() <= cell.vy.abs() {
+                        dx /= 2;
+                    }
                 }
             } else {
                 if h != 0 {
@@ -731,14 +743,14 @@ fn random_signum(x: i32) -> i32 {
 }
 
 fn next_pixel(dx: i32, dy: i32) -> (i32, i32) {
-    if dy.abs() < dx.abs() {
-        if 2 * dy - dx > 0 {
+    if dy.abs() <= dx.abs() {
+        if 2 * dy - dx >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (dx.signum(), 0)
         }
     } else {
-        if 2 * dx - dy > 0 {
+        if 2 * dx - dy >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (0, dy.signum())
