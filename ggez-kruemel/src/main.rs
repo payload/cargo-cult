@@ -743,17 +743,31 @@ fn random_signum(x: i32) -> i32 {
 }
 
 fn next_pixel(dx: i32, dy: i32) -> (i32, i32) {
-    if dy.abs() <= dx.abs() {
+    if dy.abs() < dx.abs() {
         if 2 * dy - dx >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (dx.signum(), 0)
         }
-    } else {
+    } else if dy.abs() > dx.abs() {
         if 2 * dx - dy >= 0 {
             (dx.signum(), dy.signum())
         } else {
             (0, dy.signum())
         }
+    } else {
+        (dx.signum(), dy.signum())
     }
+}
+
+#[test]
+fn test_next_pixel() {
+    assert_eq!(next_pixel(-1, -1), (-1, -1));
+    assert_eq!(next_pixel( 0, -1), ( 0, -1));
+    assert_eq!(next_pixel( 1, -1), ( 1, -1));
+    assert_eq!(next_pixel(-1,  1), (-1,  1));
+    assert_eq!(next_pixel( 0,  1), ( 0,  1));
+    assert_eq!(next_pixel( 1,  1), ( 1,  1));
+    assert_eq!(next_pixel(-1,  0), (-1,  0));
+    assert_eq!(next_pixel( 1,  0), ( 1,  0));
 }
