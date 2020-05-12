@@ -14,7 +14,7 @@ use line_drawing::*;
 extern crate bitflags;
 
 fn main() {
-    experiment_tick_cells();
+    //experiment_tick_cells();
 
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .window_setup(ggez::conf::WindowSetup {
@@ -102,6 +102,11 @@ impl Cells {
         let left_right = |x| if tick_n & 1 == 1 { w - x - 1 } else { x };
         let update_sand = true;
 
+        for cell in self.cells.iter_mut() {
+            cell.flags.remove(CellFlags::TOUCHED);
+            cell.flags.remove(CellFlags::TRIED);
+        }
+
         for y in bottom_to_top {
             for x in 0..w {
                 let x = left_right(x);
@@ -128,7 +133,6 @@ impl Cells {
         let mut count = [0; 256];
         for cell in self.cells.iter_mut() {
             count[cell.id as usize] += 1;
-            cell.set_touched(false);
         }
 
         self.tick_n += 1;
@@ -204,14 +208,37 @@ impl Cells {
         let vx = cell.vx as i32;
         let vy = cell.vy as i32;
         let (h, v) = next_pixel(vx, vy + 1);
-        let d = self.cell(h, v);
+        let d = self.cell(x + h, y + v);
 
-        println!("{} {}", h, v);
+        println!("{} {}", x, y);
+        if x == 5 && y == 18 {
+            println!("{} {}", h, v);
+        }
 
         if d.id == Empty {
             cell.vy = cell.vy.saturating_add(1);
         } else if d.id == Sand {
-            println!("A Sand");
+            // If sand stands still v=0, try to ripple down artificially.
+            // Alternative idea:
+            //  If sand stands perfectly still v=0 d=0, don't ripple down.
+            //  But when sand moves, apply at least d=1 to surrounding sand.
+            if vx == 0 && vy == 0 {
+                let empty_l = self.cell(x - 1, y + 1).id == Empty;
+                let empty_r = self.cell(x + 1, y + 1).id == Empty;
+                if (empty_l && empty_r && random()) || (empty_l && !empty_r) {
+                    cell.vx -= 1;
+                    cell.vy += 1;
+                    if cell.dy == 0 { // random advantage
+                        cell.dy = (cell.random * 5.0).floor() as i8;
+                    }
+                } else if empty_r {
+                    cell.vx += 1;
+                    cell.vy += 1;
+                    if cell.dy == 0 { // random advantage
+                        cell.dy = (cell.random * 5.0).floor() as i8;
+                    }
+                }
+            }
         } else if d.id == Unavailable {
             println!("A Unavailable");
         }
@@ -267,11 +294,12 @@ impl Cells {
                 }
 
             } else if next.id == Sand {
+                self.cells[idx1].flags.insert(CellFlags::TRIED);
                 if (h == 0 && v != 0) || (h != 0 && v != 0 && random()) {
-                    cell.vx += random_signum(cell.vx as i32) as i8 * cell.vy / 2;
-                    cell.vy /= 2;
-                    dx += random_signum(cell.vx as i32) * dy / 2;
-                    dy = dy / 2;
+                    cell.vx += random_signum(cell.vx as i32) as i8 * ((cell.vy * 2) / 3);
+                    cell.vy /= 3;
+                    dx += random_signum(cell.vx as i32) * ((dy * 2) / 3);
+                    dy = dy / 3;
                 } else if h != 0 {
                     dx %= 10;
                     cell.vx = 0;
@@ -409,6 +437,7 @@ struct Cell {
 bitflags! {
     struct CellFlags: u8 {
         const TOUCHED = 0b00000001;
+        const TRIED   = 0b00000010;
     }
 }
 
@@ -472,18 +501,30 @@ impl MyGame {
     fn new(ctx: &mut Context) -> MyGame {
         let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
         let scale = 8;
-        let w = size.width as u32 / scale;
-        let h = size.height as u32 / scale;
+        let w = 10;
+        let h = 20;
         let cells = Cells::new(w as usize, h as usize);
 
-        let game = MyGame {
+        let mut game = MyGame {
             cells,
             paint_primary_id: Sand,
             paint_secondary_id: Empty,
             paint_size: 4,
-            scale,
-            paused: false,
+            scale: scale as u32,
+            paused: true,
         };
+
+        let w2 = w/2 - 1;
+        game.cells.paint(w2+0, h-1, Sand);
+        game.cells.paint(w2+1, h-1, Sand);
+        game.cells.paint(w2+2, h-1, Sand);
+        game.cells.paint(w2+0, h-2, Sand);
+        game.cells.paint(w2+1, h-2, Sand);
+        game.cells.paint(w2+2, h-2, Sand);
+
+        game.cells.paint(w2-1, h-2, Wood);
+        game.cells.paint(w2+3, h-2, Wood);
+
         game
     }
 }
@@ -511,7 +552,8 @@ impl EventHandler for MyGame {
         }
 
         if !self.paused {
-            self.cells.sim_update()
+            self.cells.sim_update();
+            self.paused = true;
         }
 
         Ok(())
@@ -576,15 +618,19 @@ impl MyGame {
             );
         };
 
-        for y in 0..self.cells.h() {
-            for x in 0..self.cells.w() {
+        for y in 0..=self.cells.h() {
+            for x in 0..=self.cells.w() {
                 let cell = self.cells.cell(x, y);
-                match cell.id {
-                    Sand => draw(x, y, rgb(hsl(40.0, 1.0, 0.3 + 0.2 * cell.random))),
-                    Wood => draw(x, y, rgb(hsl(20.0, 0.6, 0.2 + 0.2 * cell.random))),
-                    Water => draw(x, y, rgb(hsl(220.0, 1.0, 0.3 + 0.2 * cell.random))),
-                    _ => {},
+                if cell.id != Empty {
+                    draw(x, y, cell_color_real(cell));
                 }
+            }
+        }
+
+        for y in 0..=self.cells.h() {
+            for x in 0..=self.cells.w() {
+                self.cell_debug(ctx, x as f32, y as f32, &self.cells.cell(x, y));
+                
             }
         }
 
@@ -594,6 +640,39 @@ impl MyGame {
             Ok(())
         }
     }
+
+    fn cell_debug(&mut self, ctx: &mut Context, x: f32, y: f32, cell: &Cell) {
+        let s = self.scale as f32;
+        let w = self.cells.w() as f32;
+        let params = graphics::DrawParam::new()
+            .color(graphics::BLACK)
+            .dest([(x + w) * s * 3.0, y * s * 3.0])
+            .scale([0.75, 0.75]);
+
+        if cell.id != Empty {
+            graphics::draw(ctx, &graphics::Text::new(cell_text_debug(cell)), params).unwrap();
+        } else if cell.flags.contains(CellFlags::TRIED) {
+            graphics::draw(ctx, &graphics::Text::new("x"), params).unwrap();
+        }
+    }
+}
+
+fn cell_color_real(cell: Cell) -> (f32, f32, f32) {
+    match cell.id {
+        Sand => rgb(hsl(40.0, 1.0, 0.3 + 0.2 * cell.random)),
+        Wood => rgb(hsl(20.0, 0.6, 0.2 + 0.2 * cell.random)),
+        Water => rgb(hsl(220.0, 1.0, 0.3 + 0.2 * cell.random)),
+        _ => (0.0, 0.0, 0.0),
+    }
+}
+
+fn cell_color_debug(cell: &Cell) -> (f32, f32, f32) {
+    (cell.vx as f32 * 10.0, cell.vy as f32 * 10.0, (cell.dx + cell.dy) as f32 * 10.0)
+}
+
+fn cell_text_debug(cell: &Cell) -> String {
+    let j = if cell.flags.contains(CellFlags::TRIED) { 'x' } else { ' ' };
+    format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.dx, j, cell.dy)
 }
 
 fn hsl(h: f32, s: f32, l: f32) -> Hsl<> {

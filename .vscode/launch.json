@@ -6,6 +6,12 @@
     "configurations": [
         {
             "type": "lldb",
+            "request": "attach",
+            "name": "Attach",
+            "program": "${workspaceFolder}/target/debug/ggez-kruemel"
+        },
+        {
+            "type": "lldb",
             "request": "launch",
             "name": "Debug unit tests in library 'ggez-sandspiel'",
             "cargo": {
