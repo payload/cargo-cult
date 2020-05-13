@@ -250,7 +250,7 @@ impl Cells {
 
         let ten: i32 = 10;
 
-        if !(cell.dx.abs() as i32 >= ten || cell.dy.abs() as i32 >= ten) {
+        if !(cell.dx >= 10 || cell.dy >= 10 || cell.dx <= -10 || cell.dy <= -10) {
             self.cells[idx] = cell;
             return;
         }
@@ -292,22 +292,41 @@ impl Cells {
                 
                 if h != 0 {
                     dx -= ten * dx.signum();
-                    cell.vx = (cell.vx * 2) / 3;
+                    let vx = (cell.vx as i32 * 2) / 3;
+                    cell.vx = vx as i8;
                 }
                 if v != 0 {
                     dy -= ten * dy.signum();
                 }
 
             } else if next.id == Sand {
-                // TODO bad
                 self.cells[idx1].flags.insert(CellFlags::TRIED);
-                if h != 0 {
-                    dx -= 1 * dx.signum();
-                    cell.vx = (cell.vx * 2) / 3;
-                }
-                if v != 0 {
-                    dy -= 1 * dy.signum();
-                    cell.vy = (cell.vy * 2) / 3;
+                if v != 0 && h == 0 {
+                    if dx == 0 {
+                        // check diagonals for empty cells
+                        let dr_empty = self.cell(x1 + 1, y1).id == Empty;
+                        let dl_empty = self.cell(x1 - 1, y1).id == Empty;
+                        if (dl_empty && dr_empty && cell.random < 0.5) || (dl_empty && !dr_empty) {
+                            dx -= (dy / 2).abs();
+                            dy /= 2;
+                        } else if dr_empty && !dl_empty {
+                            dx += (dy / 2).abs();
+                            dy /= 2;
+                        } // check horizontal cells for empty cells
+                        else if false {
+                            
+                        } // full stop
+                        else {
+                            dx = 0;
+                            dy = 0;
+                        }
+                    } else {
+                        dx = 0;
+                        dy = 0;
+                    }
+                } else {
+                    dx = 0;
+                    dy = 0;
                 }
             } else {
                 if h != 0 {
