@@ -306,7 +306,7 @@ impl Cells {
                         // check diagonals for empty cells
                         let dr_empty = self.cell(x1 + 1, y1).id == Empty;
                         let dl_empty = self.cell(x1 - 1, y1).id == Empty;
-                        if (dl_empty && dr_empty && cell.random < 0.5) || (dl_empty && !dr_empty) {
+                        if (dl_empty && dr_empty && random()) || (dl_empty && !dr_empty) {
                             dx -= (dy / 2).abs();
                             dy /= 2;
                         } else if dr_empty && !dl_empty {
@@ -321,8 +321,27 @@ impl Cells {
                             dy = 0;
                         }
                     } else {
-                        dx = 0;
-                        dy = 0;
+                        // check diagonals for empty cells
+                        let dr_empty = self.cell(x1 + 1, y1).id == Empty;
+                        let dl_empty = self.cell(x1 - 1, y1).id == Empty;
+                        if dl_empty && dr_empty {
+                            // or points until 10 instead of /2
+                            dx += dx.signum() * (dy / 2).abs();
+                            dy /= 2;
+                        } else if dl_empty && !dr_empty {
+                            dx -= (dy / 2).abs();
+                            dy /= 2;
+                        } else if dr_empty && !dl_empty {
+                            dx += (dy / 2).abs();
+                            dy /= 2;
+                        } // check horizontal cells for empty cells
+                        else if false {
+                            
+                        } // full stop
+                        else {
+                            dx = 0;
+                            dy = 0;
+                        }
                     }
                 } else {
                     dx = 0;
@@ -526,8 +545,8 @@ impl MyGame {
         let scale = 8;
         let w = size.width as i32 / scale;
         let h = size.height as i32 / scale;
-        //let w = 10;
-        //let h = 20;
+        // let w = 10;
+        // let h = 20;
         let cells = Cells::new(w as usize, h as usize);
 
         let mut game = MyGame {
@@ -549,6 +568,13 @@ impl MyGame {
 
         game.cells.paint(w2-1, h-2, Wood);
         game.cells.paint(w2+3, h-2, Wood);
+
+        game.cells.paint(0, h-1, Sand);
+        game.cells.paint(0, h-2, Sand);
+        game.cells.paint(0, h-3, Sand);
+        game.cells.paint(0, h-4, Sand);
+        game.cells.paint(0, h-5, Sand);
+        game.cells.paint(0, h-6, Sand);
 
         game
     }
