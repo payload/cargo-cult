@@ -302,46 +302,26 @@ impl Cells {
             } else if next.id == Sand {
                 self.cells[idx1].flags.insert(CellFlags::TRIED);
                 if v != 0 && h == 0 {
-                    if dx == 0 {
-                        // check diagonals for empty cells
-                        let dr_empty = self.cell(x1 + 1, y1).id == Empty;
-                        let dl_empty = self.cell(x1 - 1, y1).id == Empty;
-                        if (dl_empty && dr_empty && random()) || (dl_empty && !dr_empty) {
-                            dx -= (dy / 2).abs();
-                            dy /= 2;
-                        } else if dr_empty && !dl_empty {
-                            dx += (dy / 2).abs();
-                            dy /= 2;
-                        } // check horizontal cells for empty cells
-                        else if false {
-                            
-                        } // full stop
-                        else {
-                            dx = 0;
-                            dy = 0;
-                        }
-                    } else {
-                        // check diagonals for empty cells
-                        let dr_empty = self.cell(x1 + 1, y1).id == Empty;
-                        let dl_empty = self.cell(x1 - 1, y1).id == Empty;
-                        if dl_empty && dr_empty {
-                            // or points until 10 instead of /2
-                            dx += dx.signum() * (dy / 2).abs();
-                            dy /= 2;
-                        } else if dl_empty && !dr_empty {
-                            dx -= (dy / 2).abs();
-                            dy /= 2;
-                        } else if dr_empty && !dl_empty {
-                            dx += (dy / 2).abs();
-                            dy /= 2;
-                        } // check horizontal cells for empty cells
-                        else if false {
-                            
-                        } // full stop
-                        else {
-                            dx = 0;
-                            dy = 0;
-                        }
+                    // check diagonals for empty cells
+                    let dr_empty = self.cell(x1 + 1, y1).id == Empty;
+                    let dl_empty = self.cell(x1 - 1, y1).id == Empty;
+                    if dl_empty && dr_empty {
+                        // or points until 10 instead of /2
+                        dx += random_signum(dx) * (dy / 2).abs();
+                        dy /= 2;
+                    } else if dl_empty && !dr_empty {
+                        dx = -dx.abs() - (dy / 2).abs();
+                        dy /= 2;
+                    } else if dr_empty && !dl_empty {
+                        dx = dx.abs() + (dy / 2).abs();
+                        dy /= 2;
+                    } // check horizontal cells for empty cells
+                    else if false {
+                        
+                    } // full stop
+                    else {
+                        dx = 0;
+                        dy = 0;
                     }
                 } else {
                     dx = 0;
