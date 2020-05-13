@@ -342,13 +342,13 @@ impl Cells {
     }
 
     fn update_wood(&mut self, x: X, y: Y, _idx: usize) {
-        if let Some(idx) = self.checked_idx(x, y - 1) {
-            let mut u = self.cell(x, y - 1);
-            if u.id == Sand {
-                u.vx = u.vx.saturating_add(-10);
-                self.cells[idx] = u;
-            }
-        }
+        // if let Some(idx) = self.checked_idx(x, y - 1) {
+        //     let mut u = self.cell(x, y - 1);
+        //     if u.id == Sand {
+        //         u.vx = u.vx.saturating_add(-10);
+        //         self.cells[idx] = u;
+        //     }
+        // }
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
@@ -539,22 +539,27 @@ impl MyGame {
         };
 
         let w2 = w/2 - 1;
-        game.cells.paint(w2+0, h-1, Sand);
-        game.cells.paint(w2+1, h-1, Sand);
-        game.cells.paint(w2+2, h-1, Sand);
-        game.cells.paint(w2+0, h-2, Sand);
-        game.cells.paint(w2+1, h-2, Sand);
-        game.cells.paint(w2+2, h-2, Sand);
+        // game.cells.paint(w2+0, h-1, Sand);
+        // game.cells.paint(w2+1, h-1, Sand);
+        // game.cells.paint(w2+2, h-1, Sand);
+        // game.cells.paint(w2+0, h-2, Sand);
+        // game.cells.paint(w2+1, h-2, Sand);
+        // game.cells.paint(w2+2, h-2, Sand);
 
-        game.cells.paint(w2-1, h-2, Wood);
-        game.cells.paint(w2+3, h-2, Wood);
+        // game.cells.paint(w2-1, h-2, Wood);
+        // game.cells.paint(w2+3, h-2, Wood);
 
-        game.cells.paint(0, h-1, Sand);
-        game.cells.paint(0, h-2, Sand);
-        game.cells.paint(0, h-3, Sand);
-        game.cells.paint(0, h-4, Sand);
-        game.cells.paint(0, h-5, Sand);
-        game.cells.paint(0, h-6, Sand);
+        // game.cells.paint(0, h-1, Sand);
+        // game.cells.paint(0, h-2, Sand);
+        // game.cells.paint(0, h-3, Sand);
+        // game.cells.paint(0, h-4, Sand);
+        // game.cells.paint(0, h-5, Sand);
+        // game.cells.paint(0, h-6, Sand);
+
+        game.cells.paint(w2-1, h-1, Wood);
+        game.cells.paint(w2-0, h-1, Wood);
+        game.cells.paint(w2+1, h-1, Wood);
+        game.cells.paint(w2-0, h-2, Sand);
 
         game
     }
@@ -584,7 +589,9 @@ impl EventHandler for MyGame {
 
         if !self.paused {
             self.cells.sim_update();
-            // self.paused = true;
+            if self.cells.w() < 20 {
+                self.paused = true;
+            }
         }
 
         Ok(())
