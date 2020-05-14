@@ -150,6 +150,7 @@ impl Cells {
         str
     }
 
+    fn cursor(&self, x: X, y: Y) -> CellCursor { CellCursor::new(x, y, self.w()) }
     fn w(&self) -> X {
         self.width as X
     }
@@ -245,46 +246,28 @@ impl Cells {
         
         cell = self.update_sand_acceleration(x, y, cell);
         
-        cell.dx = cell.dx.saturating_add(cell.vx);
-        cell.dy = cell.dy.saturating_add(cell.vy);
-
-        if !(cell.dx >= 10 || cell.dy >= 10 || cell.dx <= -10 || cell.dy <= -10) {
-            self.cells[idx] = cell;
-            return;
-        }
-
-        let mut dx = cell.dx();
-        let mut dy = cell.dy();
-        let mut x0 = x;
-        let mut y0 = y;
-        let mut x1 = x;
-        let mut y1 = y;
-        let mut idx0;
+        let mut dx = cell.dx.saturating_add(cell.vx) as i32;
+        let mut dy = cell.dy.saturating_add(cell.vy) as i32;
+        
+        let mut cursor0 = self.cursor(x, y);
 
         let mut loop_count = 0;
         loop {
-            loop_count += 1;
-            idx0 = self.idx(x0, y0);
-
             if !(dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10) {
                 cell.set_dx(dx);
                 cell.set_dy(dy);
-                self.cells[idx0] = cell;
+                self.cells[cursor0.idx] = cell;
                 break;
             }
-
-            let (h, v) = next_pixel(dx, dy);
-            assert!(h != 0 || v != 0);
-            x1 = x0 + h;
-            y1 = y0 + v;
+            loop_count += 1;
             
-            let idx1 = self.idx(x1, y1);
-            let next = self.cell(x1, y1);
+            let (h, v) = next_pixel(dx, dy);
+            let cursor1 = cursor0.add(h, v);
+            let next = self.cell(cursor1.x, cursor1.y);
             
             if next.id == Empty {
-                self.cells[idx0] = self.cells[idx1];
-                x0 = x1;
-                y0 = y1;
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
+                cursor0 = cursor1;
                 
                 if h != 0 {
                     dx -= 10 * dx.signum();
@@ -294,11 +277,11 @@ impl Cells {
                 }
 
             } else if next.id == Sand {
-                self.cells[idx1].flags.insert(CellFlags::TRIED);
+                self.cells[cursor1.idx].flags.insert(CellFlags::TRIED);
                 if v != 0 && h == 0 {
                     // check diagonals for empty cells
-                    let dr_empty = self.cell(x1 + 1, y1).id == Empty;
-                    let dl_empty = self.cell(x1 - 1, y1).id == Empty;
+                    let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
+                    let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
                     if dl_empty && dr_empty {
                         // TODO try alternative, points until 10 instead of /2
                         dx += random_signum(dx) * (dy / 2).abs();
@@ -814,4 +797,28 @@ fn test_next_pixel() {
     assert_eq!(next_pixel(-2,  2), (-1,  1));
     assert_eq!(next_pixel( 2, -2), ( 1, -1));
     assert_eq!(next_pixel( 2,  2), ( 1,  1));
+}
+
+#[derive(Debug, Copy, Clone)]
+struct CellCursor {
+    x: X,
+    y: Y,
+    w: X,
+    idx: usize,
+}
+
+impl CellCursor {
+    fn new(x: X, y: Y, w: X) -> Self {
+        Self { x, y, w, idx: (y * w + x) as usize }
+    }
+
+    fn set(&mut self, x: X, y: Y) {
+        self.x = x;
+        self.y = y;
+        self.idx = (y * self.w + x) as usize;
+    }
+
+    fn add(&self, dx: X, dy: Y) -> Self {
+        Self::new(self.x + dx, self.y + dy, self.w)
+    }
 }
