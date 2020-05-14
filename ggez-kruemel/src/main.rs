@@ -6,7 +6,6 @@ use ggez::{Context, ContextBuilder, GameResult};
 
 use rand::prelude::*;
 use palette::*;
-use line_drawing::*;
 
 // use std::default;
 
@@ -14,7 +13,7 @@ use line_drawing::*;
 extern crate bitflags;
 
 fn main() {
-    //experiment_tick_cells();
+    experiment_tick_cells();
 
     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
         .window_setup(ggez::conf::WindowSetup {
@@ -300,14 +299,7 @@ impl Cells {
         self.loop_count = self.loop_count.max(loop_count);
     }
 
-    fn update_wood(&mut self, x: X, y: Y, _idx: usize) {
-        // if let Some(idx) = self.checked_idx(x, y - 1) {
-        //     let mut u = self.cell(x, y - 1);
-        //     if u.id == Sand {
-        //         u.vx = u.vx.saturating_add(-10);
-        //         self.cells[idx] = u;
-        //     }
-        // }
+    fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
     }
 
     fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
@@ -446,10 +438,6 @@ impl Cell {
 
     fn vx(&self) -> i32 { self.vx as i32 }
     fn vy(&self) -> i32 { self.vy as i32 }
-    fn dx(&self) -> i32 { self.dx as i32 }
-    fn dy(&self) -> i32 { self.dy as i32 }
-    fn set_vx(&mut self, v: i32) { self.vx = v as i8; }
-    fn set_vy(&mut self, v: i32) { self.vy = v as i8; }
     fn set_dx(&mut self, v: i32) { self.dx = v as i8; }
     fn set_dy(&mut self, v: i32) { self.dy = v as i8; }
 }
@@ -676,10 +664,6 @@ fn cell_color_real(cell: Cell) -> (f32, f32, f32) {
     }
 }
 
-fn cell_color_debug(cell: &Cell) -> (f32, f32, f32) {
-    (cell.vx as f32 * 10.0, cell.vy as f32 * 10.0, (cell.dx + cell.dy) as f32 * 10.0)
-}
-
 fn cell_text_debug(cell: &Cell) -> String {
     let j = if cell.flags.contains(CellFlags::TRIED) { 'x' } else { ' ' };
     format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.dx, j, cell.dy)
@@ -796,12 +780,6 @@ struct CellCursor {
 impl CellCursor {
     fn new(x: X, y: Y, w: X) -> Self {
         Self { x, y, w, idx: (y * w + x) as usize }
-    }
-
-    fn set(&mut self, x: X, y: Y) {
-        self.x = x;
-        self.y = y;
-        self.idx = (y * self.w + x) as usize;
     }
 
     fn add(&self, dx: X, dy: Y) -> Self {
