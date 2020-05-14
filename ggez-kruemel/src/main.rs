@@ -233,8 +233,9 @@ impl Cells {
                     }
                 }
             }
-        } else if d.id == Unavailable {
-            
+        } else {
+            cell.vx -= cell.vx.signum();
+            cell.vy -= cell.vx.signum();
         }
 
         cell
