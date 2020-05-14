@@ -106,7 +106,7 @@ impl Cells {
         let update_sand = true;
 
         for cell in self.cells.iter_mut() {
-            cell.flags.remove(CellFlags::TOUCHED);
+            cell.flags.remove(CellFlags::UPDATED);
             cell.flags.remove(CellFlags::TRIED);
             cell.flags.remove(CellFlags::V_FREE);
         }
@@ -116,7 +116,7 @@ impl Cells {
                 let x = left_right(x);
                 let idx = self.idx(x, y);
                 let cell = self.cells[idx];
-                if cell.touched() { continue }
+                if cell.flags.contains(CellFlags::UPDATED) { continue }
                 match cell.id {
                     Sand if update_sand => { self.update_sand(x, y, idx); },
                     Water => { self.update_water(x, y, idx); },
@@ -186,7 +186,7 @@ impl Cells {
 
     fn cell(&self, x: X, y: Y) -> Cell {
         if let Some(idx) = self.checked_idx(x, y) {
-            if !self.cells[idx].touched() {
+            if !self.cells[idx].flags.contains(CellFlags::UPDATED) {
                 return self.cells[idx];
             } 
         }
@@ -195,29 +195,30 @@ impl Cells {
 
     #[inline(always)]
     fn update_sand_acceleration(&mut self, x: X, y: Y, mut cell: Cell) -> Cell {
+        let gy = 1;
         let vx = cell.vx();
         let vy = cell.vy();
-        let (h, v) = next_pixel(vx, vy + 1);
+        let (h, v) = next_pixel(vx, vy + gy);
         let d = self.cell(x + h, y + v);
         
         if let Some(poo) = self.checked_idx(x + h, y + v) {
             self.cells[poo].flags.insert(CellFlags::V_FREE);
         }
 
-        let accel = 1;
+        let accel = gy as i8;
         if d.id == Empty {
             cell.vy = cell.vy.saturating_add(accel);
         } else if d.id == Sand {
             if d.vy > cell.vy {
-                cell.vy += (d.vy - cell.vy).min(accel);
+                cell.vy = cell.vy.saturating_add(d.vy.saturating_sub(cell.vy).min(accel));
             } else
             // If sand stands still v=0, try to ripple down artificially.
             // Alternative idea:
             //  If sand stands perfectly still v=0 d=0, don't ripple down.
             //  But when sand moves, apply at least d=1 to surrounding sand.
             if vx == 0 && vy == 0 {
-                let empty_l = self.cell(x - 1, y + 1).id == Empty;
-                let empty_r = self.cell(x + 1, y + 1).id == Empty;
+                let empty_l = self.cell(x - 1, y + gy).id == Empty;
+                let empty_r = self.cell(x + 1, y + gy).id == Empty;
                 if (empty_l && empty_r && random()) || (empty_l && !empty_r) {
                     cell.vx -= accel;
                     cell.vy += accel;
@@ -378,8 +379,8 @@ impl Cells {
         let mut b = self.cells[b_idx];
         let a_touched = a.id != Empty;
         let b_touched = b.id != Empty;
-        a.set_touched(a_touched);
-        b.set_touched(b_touched);
+        a.flags.set(CellFlags::UPDATED, a_touched);
+        b.flags.set(CellFlags::UPDATED, b_touched);
         self.cells[a_idx] = b;
         self.cells[b_idx] = a;
         (x, y)
@@ -408,7 +409,7 @@ struct Cell {
 
 bitflags! {
     struct CellFlags: u8 {
-        const TOUCHED = 0b00000001;
+        const UPDATED = 0b00000001;
         const TRIED   = 0b00000010;
         const V_FREE  = 0b00000100;
     }
@@ -422,9 +423,6 @@ impl Cell {
     fn water() -> Self { Self::new(Water) }
     fn wood() -> Self { Self::new(Wood) }
     fn unavailable() -> Self { Self::new(Unavailable) }
-    
-    fn set_touched(&mut self, set: bool) { self.flags.set(CellFlags::TOUCHED, set) }
-    fn touched(&self) -> bool { self.flags.contains(CellFlags::TOUCHED) }
 
     fn char(&self) -> char {
         match self.id {
