@@ -290,7 +290,6 @@ impl Cells {
                 
                 if h != 0 {
                     dx -= 10 * dx.signum();
-                    cell.set_vx((cell.vx() * 2) / 3);
                 }
                 if v != 0 {
                     dy -= 10 * dy.signum();
