@@ -270,13 +270,8 @@ impl Cells {
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
                 
-                if h != 0 {
-                    dx -= 10 * dx.signum();
-                }
-                if v != 0 {
-                    dy -= 10 * dy.signum();
-                }
-
+                dx -= 10 * h;
+                dy -= 10 * v;
             } else if next.id == Sand {
                 self.cells[cursor1.idx].flags.insert(CellFlags::TRIED);
                 if v != 0 && h == 0 {
