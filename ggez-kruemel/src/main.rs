@@ -250,42 +250,25 @@ impl Cells {
         let mut dx = cell.dx.saturating_add(cell.vx) as i32;
         let mut dy = cell.dy.saturating_add(cell.vy) as i32;
         
-        let mut cursor0 = self.cursor(x, y);
-
         let mut loop_count = 0;
-        loop {
-            if !(dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10) {
-                cell.set_dx(dx);
-                cell.set_dy(dy);
-                self.cells[cursor0.idx] = cell;
-                break;
-            }
+        let mut cursor0 = self.cursor(x, y);
+        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {
             loop_count += 1;
-            
+            // TODO this can be done in a single line
             let (h, v) = next_pixel(dx, dy);
             let cursor1 = cursor0.add(h, v);
             let next = self.cell(cursor1.x, cursor1.y);
-            
+
             if next.id == Empty {
-                self.cells[cursor0.idx] = self.cells[cursor1.idx];
-                cursor0 = cursor1;
-                
                 dx -= 10 * h;
                 dy -= 10 * v;
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
+                cursor0 = cursor1;
             } else if next.id == Sand {
-                self.cells[cursor1.idx].flags.insert(CellFlags::TRIED);
-                if v != 0 && h == 0 {
-                    // check diagonals for empty cells
-                    let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
-                    let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
-                    let dir = choose_direction_factor(dx, dl_empty, dr_empty);
-
-                    dx = dir * (dx.abs() + (dy / 2).abs());
-                    dy = if dir != 0 { dy / 2 } else { 0 };
-                } else {
-                    dx = 0;
-                    dy = 0;
-                }
+                // needs a i32 vector type so this can become a one line
+                let (new_dx, new_dy) = self.update_sand_deflection(cursor1, h, v, dx, dy);
+                dx = new_dx;
+                dy = new_dy;
             } else {
                 if h != 0 {
                     dx %= 10;
@@ -297,7 +280,25 @@ impl Cells {
                 }
             }
         }
+
+        cell.set_dx(dx);
+        cell.set_dy(dy);
+        self.cells[cursor0.idx] = cell;
         self.loop_count = self.loop_count.max(loop_count);
+    }
+
+    fn update_sand_deflection(&mut self, cursor: CellCursor, h: i32, v: i32, dx: i32, dy: i32) -> (i32, i32) {
+        self.cells[cursor.idx].flags.insert(CellFlags::TRIED);
+        if v != 0 && h == 0 {
+            let dr_empty = self.cell(cursor.x + 1, cursor.y).id == Empty;
+            let dl_empty = self.cell(cursor.x - 1, cursor.y).id == Empty;
+            let dir = choose_direction_factor(dx, dl_empty, dr_empty);
+            (dir * (dx.abs() + (dy / 2).abs()), if dir != 0 { dy / 2 } else { 0 })
+        } else {
+            // TODO test other directions too
+            //      add artifical sand source shooting in a direction at static sand to see proper deflection
+            (0, 0)
+        }
     }
 
     fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
