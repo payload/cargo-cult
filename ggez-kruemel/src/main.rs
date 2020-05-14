@@ -195,8 +195,8 @@ impl Cells {
 
     #[inline(always)]
     fn update_sand_acceleration(&mut self, x: X, y: Y, mut cell: Cell) -> Cell {
-        let vx = cell.vx as i32;
-        let vy = cell.vy as i32;
+        let vx = cell.vx();
+        let vy = cell.vy();
         let (h, v) = next_pixel(vx, vy + 1);
         let d = self.cell(x + h, y + v);
         
@@ -253,8 +253,8 @@ impl Cells {
             return;
         }
 
-        let mut dx = cell.dx as i32;
-        let mut dy = cell.dy as i32;
+        let mut dx = cell.dx();
+        let mut dy = cell.dy();
         let mut x0 = x;
         let mut y0 = y;
         let mut x1 = x;
@@ -269,8 +269,8 @@ impl Cells {
             let ddy = dy / 10;
 
             if ddx == 0 && ddy == 0 {
-                cell.dx = dx as i8;
-                cell.dy = dy as i8;
+                cell.set_dx(dx);
+                cell.set_dy(dy);
                 self.cells[idx0] = cell;
                 break;
             }
@@ -290,8 +290,7 @@ impl Cells {
                 
                 if h != 0 {
                     dx -= 10 * dx.signum();
-                    let vx = (cell.vx as i32 * 2) / 3;
-                    cell.vx = vx as i8;
+                    cell.set_vx((cell.vx() * 2) / 3);
                 }
                 if v != 0 {
                     dy -= 10 * dy.signum();
@@ -478,6 +477,15 @@ impl Cell {
             Unavailable => 'X',
         }
     }
+
+    fn vx(&self) -> i32 { self.vx as i32 }
+    fn vy(&self) -> i32 { self.vy as i32 }
+    fn dx(&self) -> i32 { self.dx as i32 }
+    fn dy(&self) -> i32 { self.dy as i32 }
+    fn set_vx(&mut self, v: i32) { self.vx = v as i8; }
+    fn set_vy(&mut self, v: i32) { self.vy = v as i8; }
+    fn set_dx(&mut self, v: i32) { self.dx = v as i8; }
+    fn set_dy(&mut self, v: i32) { self.dy = v as i8; }
 }
 
 impl From<CellId> for Cell {
