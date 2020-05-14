@@ -265,17 +265,15 @@ impl Cells {
         loop {
             loop_count += 1;
             idx0 = self.idx(x0, y0);
-            let ddx = dx / 10;
-            let ddy = dy / 10;
 
-            if ddx == 0 && ddy == 0 {
+            if !(dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10) {
                 cell.set_dx(dx);
                 cell.set_dy(dy);
                 self.cells[idx0] = cell;
                 break;
             }
 
-            let (h, v) = next_pixel(ddx, ddy);
+            let (h, v) = next_pixel(dx, dy);
             assert!(h != 0 || v != 0);
             x1 = x0 + h;
             y1 = y0 + v;
