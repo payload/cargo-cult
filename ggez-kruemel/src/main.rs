@@ -95,7 +95,7 @@ impl Cells {
     fn sim_update(&mut self) {
         self.loop_count = 0;
         self.tick();
-        println!("loop_count {}", self.loop_count);
+        //println!("loop_count {}", self.loop_count);
     }
 
     fn tick(&mut self) {
