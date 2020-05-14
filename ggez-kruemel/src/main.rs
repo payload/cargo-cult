@@ -248,8 +248,6 @@ impl Cells {
         cell.dx = cell.dx.saturating_add(cell.vx);
         cell.dy = cell.dy.saturating_add(cell.vy);
 
-        let ten: i32 = 10;
-
         if !(cell.dx >= 10 || cell.dy >= 10 || cell.dx <= -10 || cell.dy <= -10) {
             self.cells[idx] = cell;
             return;
@@ -267,8 +265,8 @@ impl Cells {
         loop {
             loop_count += 1;
             idx0 = self.idx(x0, y0);
-            let ddx = dx / ten;
-            let ddy = dy / ten;
+            let ddx = dx / 10;
+            let ddy = dy / 10;
 
             if ddx == 0 && ddy == 0 {
                 cell.dx = dx as i8;
@@ -291,12 +289,12 @@ impl Cells {
                 y0 = y1;
                 
                 if h != 0 {
-                    dx -= ten * dx.signum();
+                    dx -= 10 * dx.signum();
                     let vx = (cell.vx as i32 * 2) / 3;
                     cell.vx = vx as i8;
                 }
                 if v != 0 {
-                    dy -= ten * dy.signum();
+                    dy -= 10 * dy.signum();
                 }
 
             } else if next.id == Sand {
@@ -325,11 +323,11 @@ impl Cells {
                 }
             } else {
                 if h != 0 {
-                    dx %= ten;
+                    dx %= 10;
                     cell.vx = 0;
                 }
                 if v != 0 {
-                    dy %= ten;
+                    dy %= 10;
                     cell.vy = 0;
                 }
             }
