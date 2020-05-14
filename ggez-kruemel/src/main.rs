@@ -306,7 +306,7 @@ impl Cells {
                     let dr_empty = self.cell(x1 + 1, y1).id == Empty;
                     let dl_empty = self.cell(x1 - 1, y1).id == Empty;
                     if dl_empty && dr_empty {
-                        // or points until 10 instead of /2
+                        // TODO try alternative, points until 10 instead of /2
                         dx += random_signum(dx) * (dy / 2).abs();
                         dy /= 2;
                     } else if dl_empty && !dr_empty {
@@ -315,11 +315,7 @@ impl Cells {
                     } else if dr_empty && !dl_empty {
                         dx = dx.abs() + (dy / 2).abs();
                         dy /= 2;
-                    } // check horizontal cells for empty cells
-                    else if false {
-                        
-                    } // full stop
-                    else {
+                    } else {
                         dx = 0;
                         dy = 0;
                     }
@@ -540,14 +536,16 @@ impl MyGame {
 
         let w2 = w/2 - 1;
         // game.cells.paint(w2+0, h-1, Sand);
-        // game.cells.paint(w2+1, h-1, Sand);
+        game.cells.paint(w2+1, h-1, Sand);
         // game.cells.paint(w2+2, h-1, Sand);
         // game.cells.paint(w2+0, h-2, Sand);
-        // game.cells.paint(w2+1, h-2, Sand);
+        game.cells.paint(w2+1, h-2, Sand);
         // game.cells.paint(w2+2, h-2, Sand);
 
         // game.cells.paint(w2-1, h-2, Wood);
         // game.cells.paint(w2+3, h-2, Wood);
+        game.cells.paint(w2-0, h-2, Wood);
+        game.cells.paint(w2+2, h-2, Wood);
 
         // game.cells.paint(0, h-1, Sand);
         // game.cells.paint(0, h-2, Sand);
@@ -556,10 +554,10 @@ impl MyGame {
         // game.cells.paint(0, h-5, Sand);
         // game.cells.paint(0, h-6, Sand);
 
-        game.cells.paint(w2-1, h-1, Wood);
-        game.cells.paint(w2-0, h-1, Wood);
-        game.cells.paint(w2+1, h-1, Wood);
-        game.cells.paint(w2-0, h-2, Sand);
+        // game.cells.paint(w2-1, h-1, Wood);
+        // game.cells.paint(w2-0, h-1, Wood);
+        // game.cells.paint(w2+1, h-1, Wood);
+        // game.cells.paint(w2-0, h-2, Sand);
 
         game
     }
