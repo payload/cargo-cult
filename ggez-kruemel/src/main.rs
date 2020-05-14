@@ -283,12 +283,7 @@ impl Cells {
                     // check diagonals for empty cells
                     let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
                     let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
-                    let dir = match (dl_empty, dr_empty) {
-                        (false, false) => 0,
-                        (true, false) => -1,
-                        (false, true) => 1,
-                        (true, true) => random_signum(dx),
-                    };
+                    let dir = choose_direction_factor(dx, dl_empty, dr_empty);
 
                     dx = dir * (dx.abs() + (dy / 2).abs());
                     dy = if dir != 0 { dy / 2 } else { 0 };
@@ -816,5 +811,14 @@ impl CellCursor {
 
     fn add(&self, dx: X, dy: Y) -> Self {
         Self::new(self.x + dx, self.y + dy, self.w)
+    }
+}
+
+fn choose_direction_factor(x: i32, l: bool, r: bool) -> i32 {
+    match (l, r) {
+        (false, false) => 0,
+        (true, false) => -1,
+        (false, true) => 1,
+        (true, true) => random_signum(x),
     }
 }
