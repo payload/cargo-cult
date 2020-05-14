@@ -283,19 +283,24 @@ impl Cells {
                     // check diagonals for empty cells
                     let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
                     let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
+                    let dir = match (dl_empty, dr_empty) {
+                        (false, false) => 0,
+                        (true, false) => -1,
+                        (false, true) => 1,
+                        (true, true) => random_signum(dx),
+                    };
+
+                    dy = if dir != 0 { dy / 2 } else { 0 };
+
                     if dl_empty && dr_empty {
                         // TODO try alternative, points until 10 instead of /2
-                        dx += random_signum(dx) * (dy / 2).abs();
-                        dy /= 2;
+                        dx = dx + random_signum(dx) * (dy / 2).abs();
                     } else if dl_empty && !dr_empty {
                         dx = -dx.abs() - (dy / 2).abs();
-                        dy /= 2;
                     } else if dr_empty && !dl_empty {
                         dx = dx.abs() + (dy / 2).abs();
-                        dy /= 2;
                     } else {
                         dx = 0;
-                        dy = 0;
                     }
                 } else {
                     dx = 0;
