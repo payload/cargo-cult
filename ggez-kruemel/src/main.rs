@@ -290,18 +290,8 @@ impl Cells {
                         (true, true) => random_signum(dx),
                     };
 
+                    dx = dir * (dx.abs() + (dy / 2).abs());
                     dy = if dir != 0 { dy / 2 } else { 0 };
-
-                    if dl_empty && dr_empty {
-                        // TODO try alternative, points until 10 instead of /2
-                        dx = dx + random_signum(dx) * (dy / 2).abs();
-                    } else if dl_empty && !dr_empty {
-                        dx = -dx.abs() - (dy / 2).abs();
-                    } else if dr_empty && !dl_empty {
-                        dx = dx.abs() + (dy / 2).abs();
-                    } else {
-                        dx = 0;
-                    }
                 } else {
                     dx = 0;
                     dy = 0;
