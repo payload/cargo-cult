@@ -261,7 +261,7 @@ impl Cells {
             loop_count += 1;
             // TODO this can be done in a single line
             let (h, v) = next_pixel(dx, dy);
-            let cursor1 = cursor0.add(h, v);
+            let mut cursor1 = cursor0.add(h, v);
             let next = self.cell(cursor1.x, cursor1.y);
 
             if next.id == Empty {
@@ -270,10 +270,7 @@ impl Cells {
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
             } else { // if next.id == Sand {
-                // TODO needs a i32 vector type so this can become a one line
-                let (new_dx, new_dy) = self.update_sand_deflection(cursor1, h, v, dx, dy);
-                dx = new_dx;
-                dy = new_dy;
+                self.update_sand_deflection(&mut cursor0, &mut cursor1, &mut dx, &mut dy, h, v);
             }
             if true {} else {
                 if h != 0 {
@@ -293,64 +290,42 @@ impl Cells {
         self.loop_count = self.loop_count.max(loop_count);
     }
 
-    fn update_sand_deflection(&mut self, cursor: CellCursor, h: i32, v: i32, dx: i32, dy: i32) -> (i32, i32) {
+    fn update_sand_deflection(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i32, dy: &mut i32, h: i32, v: i32) {
         // TODO add impact energy transfer
         // self.cells[cursor.idx].flags.insert(CellFlags::TRIED);
-
-        /*
-        if dy.abs() < dx.abs() {
-            if (2 * dy).abs() - dx.abs() >= 0 {
-                // 1
-                (dx.signum(), dy.signum())
-            } else {
-                // 2
-                (dx.signum(), 0)
-            }
-        } else if dy.abs() > dx.abs() {
-            if (2 * dx).abs() - dy.abs() >= 0 {
-                // 3
-                (dx.signum(), dy.signum())
-            } else {
-                // 4
-                (0, dy.signum())
-            }
-        } else {
-            // 5
-            (dx.signum(), dy.signum())
-        }
-        */
-
         if v != 0 && h == 0 {
-            let dr_empty = self.cell(cursor.x + 1, cursor.y).id == Empty;
-            let dl_empty = self.cell(cursor.x - 1, cursor.y).id == Empty;
-            let dir = choose_direction_factor(dx, dl_empty, dr_empty);
+            let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
+            let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
+            let dir = choose_direction_factor(*dx, dl_empty, dr_empty);
             let low_mid = (dy.abs() - dx.abs()) / 2;
-            let ndx = dir * (dy.abs() - low_mid);
-            let ndy = dy.signum() * low_mid;
-            (ndx, ndy)
+            *dx = dir * (dy.abs() - low_mid);
+            *dy = dy.signum() * low_mid;
         } else if false && v != 0 && h != 0 {
-            let h_empty = self.cell(cursor.x + h, cursor.y).id == Empty;
-            let v_empty = self.cell(cursor.x, cursor.y + v).id == Empty;
-            
+            let h_empty = self.cell(cursor1.x + h, cursor1.y).id == Empty;
+            let v_empty = self.cell(cursor1.x, cursor1.y + v).id == Empty;
+
             if (h_empty && !v_empty) || (h_empty && v_empty && random()) {
-                let ndy = dx / 2 - 1;
-                (dx, ndy)
+                *dx -= 10 * h;
+                *cursor1 = cursor1.add(h, 0);
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
             } else if v_empty {
-                let ndx = dy / 2 - 1;
-                (ndx, dy)
+                *dy -= 10 * v;
+                *cursor1 = cursor1.add(0, v);
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
             } else {
-                (0, 0)
+                *dx = 0;
+                *dy = 0;
             }
         } else if v == 0 && h != 0 {
-            let u_empty = self.cell(cursor.x, cursor.y + 1).id == Empty;
-            let d_empty = self.cell(cursor.x, cursor.y - 1).id == Empty;
-            let dir = choose_direction_factor(dx, u_empty, d_empty);
+            let u_empty = self.cell(cursor1.x, cursor1.y + 1).id == Empty;
+            let d_empty = self.cell(cursor1.x, cursor1.y - 1).id == Empty;
+            let dir = choose_direction_factor(*dx, u_empty, d_empty);
             let low_mid = (dy.abs() - dx.abs()) / 2;
-            let ndx = dx.signum() * low_mid;
-            let ndy = dir * (dx.abs() - low_mid);
-            (ndx, ndy)
+            *dx = dx.signum() * low_mid;
+            *dy = dir * (dx.abs() - low_mid);
         } else {
-            (0, 0)
+            *dx = 0;
+            *dy = 0;
         }
     }
 
