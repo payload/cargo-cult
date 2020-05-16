@@ -200,6 +200,7 @@ impl Cells {
         let vx = cell.vx();
         let vy = cell.vy();
         let (h, v) = next_pixel(vx, vy + gy);
+
         let d = self.cell(x + h, y + v);
         
         if let Some(poo) = self.checked_idx(x + h, y + v) {
@@ -234,9 +235,12 @@ impl Cells {
                     }
                 }
             }
+            if (accel > 0 && cell.vy < accel) || (accel < 0 && cell.vy > accel) {
+                cell.vy += accel;
+            }
         } else {
             cell.vx -= cell.vx.signum();
-            cell.vy -= cell.vx.signum();
+            cell.vy -= cell.vy.signum();
         }
 
         cell
@@ -358,7 +362,8 @@ impl Cells {
             if self.cells[idx].id == Empty {
                 let mut cell = Cell::sand();
                 cell.vx = (sx * 4.0) as i8;
-                cell.vy = (sy * 4.0) as i8;
+                cell.vy = (sy * if sy < 0.0 { 12.0 } else { 4.0 }) as i8;
+                cell.flags.insert(CellFlags::UPDATED);
                 self.cells[idx] = cell;
             }
         }
