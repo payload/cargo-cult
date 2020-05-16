@@ -292,25 +292,48 @@ impl Cells {
     fn update_sand_deflection(&mut self, cursor: CellCursor, h: i32, v: i32, dx: i32, dy: i32) -> (i32, i32) {
         // TODO add impact energy transfer
         // self.cells[cursor.idx].flags.insert(CellFlags::TRIED);
+
+        /*
+        if dy.abs() < dx.abs() {
+            if (2 * dy).abs() - dx.abs() >= 0 {
+                // 1
+                (dx.signum(), dy.signum())
+            } else {
+                // 2
+                (dx.signum(), 0)
+            }
+        } else if dy.abs() > dx.abs() {
+            if (2 * dx).abs() - dy.abs() >= 0 {
+                // 3
+                (dx.signum(), dy.signum())
+            } else {
+                // 4
+                (0, dy.signum())
+            }
+        } else {
+            // 5
+            (dx.signum(), dy.signum())
+        }
+        */
+
         if v != 0 && h == 0 {
             let dr_empty = self.cell(cursor.x + 1, cursor.y).id == Empty;
             let dl_empty = self.cell(cursor.x - 1, cursor.y).id == Empty;
             let dir = choose_direction_factor(dx, dl_empty, dr_empty);
-            (dir * (dx.abs() + (dy / 2).abs()), if dir != 0 { dy / 2 } else { 0 })
-        } else if v != 0 && h != 0 {
+            let low_mid = (dy.abs() - dx.abs()) / 2;
+            let ndx = dir * (dy.abs() - low_mid);
+            let ndy = dy.signum() * low_mid;
+            (ndx, ndy)
+        } else if false && v != 0 && h != 0 {
             let h_empty = self.cell(cursor.x + h, cursor.y).id == Empty;
             let v_empty = self.cell(cursor.x, cursor.y + v).id == Empty;
             
-            if h_empty && !v_empty {
-                (dx + dx.signum() * (dy / 2).abs(), dy / 2)
-            } else if !h_empty && v_empty {
-                (dx / 2, dy + dy.signum() * (dx / 2).abs())
-            } else if h_empty && v_empty {
-                if dx > dy || (dx == dy && random()) {
-                    (dx + dx.signum() * (dy / 2).abs(), dy / 2)
-                } else {
-                    (dx / 2, dy + dy.signum() * (dx / 2).abs())
-                }
+            if (h_empty && !v_empty) || (h_empty && v_empty && random()) {
+                let ndy = dx / 2 - 1;
+                (dx, ndy)
+            } else if v_empty {
+                let ndx = dy / 2 - 1;
+                (ndx, dy)
             } else {
                 (0, 0)
             }
@@ -318,11 +341,11 @@ impl Cells {
             let u_empty = self.cell(cursor.x, cursor.y + 1).id == Empty;
             let d_empty = self.cell(cursor.x, cursor.y - 1).id == Empty;
             let dir = choose_direction_factor(dx, u_empty, d_empty);
-            let ndx = if dir != 0 { dx / 2 } else { 0 };
-            let ndy = dir * (dy.abs() + (dx / 2).abs());
+            let low_mid = (dy.abs() - dx.abs()) / 2;
+            let ndx = dx.signum() * low_mid;
+            let ndy = dir * (dx.abs() - low_mid);
             (ndx, ndy)
         } else {
-            assert!(false);
             (0, 0)
         }
     }
