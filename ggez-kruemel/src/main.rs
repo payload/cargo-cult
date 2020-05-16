@@ -103,7 +103,6 @@ impl Cells {
         let h = self.h();
         let bottom_to_top = (0..h).rev();
         let left_right = |x| if tick_n & 1 == 1 { w - x - 1 } else { x };
-        let update_sand = true;
 
         for cell in self.cells.iter_mut() {
             cell.flags.remove(CellFlags::UPDATED);
@@ -118,9 +117,9 @@ impl Cells {
                 let cell = self.cells[idx];
                 if cell.flags.contains(CellFlags::UPDATED) { continue }
                 match cell.id {
-                    Sand if update_sand => { self.update_sand(x, y, idx); },
-                    Water => { self.update_water(x, y, idx); },
-                    Wood => { self.update_wood(x, y, idx); }
+                    Sand => self.update_sand(x, y, idx),
+                    Water => self.update_water(x, y, idx),
+                    Wood =>self.update_wood(x, y, idx),
                     Special => self.update_special(x, y, idx),
                     _ => {},
                 }
@@ -357,74 +356,8 @@ impl Cells {
     fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
     }
 
-    fn update_water(&mut self, x: X, y: Y, idx: usize) -> (X, Y) {
-        let d = self.cell_id(x, y + 1);
-        let dl = self.cell_id(x - 1, y + 1);
-        let dr = self.cell_id(x + 1, y + 1);
-        let u = self.cell_id(x, y - 1);
-        let l = self.cell_id(x - 1, y);
-        let r = self.cell_id(x + 1, y);
-        let ul = self.cell_id(x - 1, y - 1);
-        let ur = self.cell_id(x + 1, y - 1);
-        let rand = |p| random::<f32>() < p;
-        let bias: bool = random();
-
-        // fall down
-        if d == Empty {
-            return self.swap(idx, x, y + 1)
-        }
-
-        let left = dl == Empty && l != Sand && l != Water;
-        let right = dr == Empty && r != Sand && r != Water;
-        if (left && right && bias) || (left && !right) {
-            return self.swap(idx, x - 1, y + 1);
-        } else if right {
-            return self.swap(idx, x + 1, y + 1);
-        }
-
-        // spread to side on water surface or under falling sand
-        let left = dl == Water && l == Empty;
-        let right = dr == Water && r == Empty;
-        if (left || right) && u != Water {
-            if (left && right && bias) || (left && !right) {
-                return self.swap(idx, x - 1, y)
-            } else if right {
-                return self.swap(idx, x + 1, y)
-            }
-        }
-
-        // trickle through falling sand
-        // (left and right is not Empty)
-        if (d == Water || l == Water || r == Water) && (u == Sand || ul == Sand || ur == Sand) {            
-            // NOTE: another variant of sand falling, duplicates parts of update_sand
-            // TODO: does not return new position
-
-            if u == Empty {
-                self.swap_touch(idx, x, y - 1);
-
-                if (bias && ul == Sand && ur == Sand) || (ul == Sand && ur != Sand) {
-                    self.swap_touch(idx, x - 1, y - 1);
-                } else if ur == Sand {
-                    self.swap_touch(idx, x + 1, y - 1);
-                }
-            } else if u == Water && rand(0.3) {
-                if (bias && ul == Sand && ur == Sand) || (ul == Sand && ur != Sand) {
-                    self.swap_touch(idx, x - 1, y - 1);
-                } else if ur == Sand {
-                    self.swap_touch(idx, x + 1, y - 1);
-                }
-            } else if u == Sand && rand(0.3) {
-                if (bias && ul == Empty && ur == Empty) || (ul == Empty && ur != Empty) {
-                    self.swap_touch(idx, x - 1, y - 1);
-                } else if ur == Empty {
-                    self.swap_touch(idx, x + 1, y - 1);
-                }
-
-                self.swap_touch(idx, x, y - 1);
-            }
-        }
-            
-        (x, y)
+    fn update_water(&mut self, x: X, y: Y, idx: usize) {
+        
     }
 
     fn swap_touch(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
