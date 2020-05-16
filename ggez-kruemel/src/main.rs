@@ -252,25 +252,25 @@ impl Cells {
         
         cell = self.update_sand_acceleration(x, y, cell);
         
-        let mut dx = cell.dx.saturating_add(cell.vx) as i32;
-        let mut dy = cell.dy.saturating_add(cell.vy) as i32;
+        let mut dx = cell.dx.saturating_add(cell.vx);
+        let mut dy = cell.dy.saturating_add(cell.vy);
         
         let mut loop_count = 0;
         let mut cursor0 = self.cursor(x, y);
         while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {
             loop_count += 1;
             // TODO this can be done in a single line
-            let (h, v) = next_pixel(dx / 10, dy / 10);
+            let (h, v) = next_pixel(dx as i32 / 10, dy as i32 / 10);
             let mut cursor1 = cursor0.add(h, v);
             let next = self.cell(cursor1.x, cursor1.y);
 
             if next.id == Empty {
-                dx -= 10 * h;
-                dy -= 10 * v;
+                dx -= 10 * h as i8;
+                dy -= 10 * v as i8;
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
             } else { // if next.id == Sand {
-                self.update_sand_deflection(&mut cursor0, &mut cursor1, &mut dx, &mut dy, h, v);
+                self.update_sand_deflection(&mut cursor0, &mut cursor1, &mut dx, &mut dy, h as i8, v as i8);
             }
             if true {} else {
                 if h != 0 {
@@ -284,78 +284,68 @@ impl Cells {
             }
         }
 
-        cell.set_dx(dx);
-        cell.set_dy(dy);
+        cell.dx = dx;
+        cell.dy = dy;
         self.cells[cursor0.idx] = cell;
         self.loop_count = self.loop_count.max(loop_count);
     }
 
-    fn update_sand_deflection(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i32, dy: &mut i32, h: i32, v: i32) {
+    fn update_sand_deflection(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
         // TODO add impact energy transfer
+        // TODO could increase v too
+        // TODO unify code paths if possible
         // self.cells[cursor.idx].flags.insert(CellFlags::TRIED);
-        let mut path = 0;
-        let dsum = dx.abs() + dy.abs();
+        let path;
+        let dsum0 = dx.abs() as i32 + dy.abs() as i32;
+
         if v != 0 && h == 0 {
+            path = 1;
             let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
             let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
-            let dir = choose_direction_factor(*dx, dl_empty, dr_empty);
-
-            self.cells[cursor0.idx].vx += dir as i8;
-
+            let dir = choose_direction_factor(*dx as i32, dl_empty, dr_empty) as i8;
             let low_mid = (dy.abs() - dx.abs()) / 2;
             *dx = dir * (dy.abs() - low_mid);
             *dy = dy.signum() * low_mid;
-
-            path = 1;
         } else if v != 0 && h != 0 {
-            let h_empty = self.cell(cursor1.x + h, cursor1.y).id == Empty;
-            let v_empty = self.cell(cursor1.x, cursor1.y + v).id == Empty;
+            let h_empty = self.cell(cursor1.x + h as i32, cursor1.y).id == Empty;
+            let v_empty = self.cell(cursor1.x, cursor1.y + v as i32).id == Empty;
 
             if (h_empty && !v_empty) || (h_empty && v_empty && random()) {
-                *dx -= 10 * h;
-                *dy -= 10 * v;
-                *cursor1 = cursor1.add(h, 0);
-                self.cells[cursor0.idx] = self.cells[cursor1.idx];
-
                 path = 2;
-            } else if v_empty {
                 *dx -= 10 * h;
                 *dy -= 10 * v;
-                *cursor1 = cursor1.add(0, v);
+                *cursor1 = cursor1.add(h as i32, 0);
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
-
+            } else if v_empty {
                 path = 3;
+                *dx -= 10 * h;
+                *dy -= 10 * v;
+                *cursor1 = cursor1.add(0, v as i32);
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
             } else {
+                path = 4;
                 *dx = 0;
                 *dy = 0;
-
-                path = 4;
             }
         } else if v == 0 && h != 0 {
+            path = 5;
             let d_empty = self.cell(cursor1.x, cursor1.y + 1).id == Empty;
             let u_empty = self.cell(cursor1.x, cursor1.y - 1).id == Empty;
-            let dir = choose_direction_factor(*dy, u_empty, d_empty);
-            
+            let dir = choose_direction_factor(*dy as i32, u_empty, d_empty) as i8;
             let low_mid = (dx.abs() - dy.abs()) / 2;
             let xdx = dx.signum() * low_mid;
             let xdy = dir * (dx.abs() - low_mid);
-
-            if xdx.abs() + xdy.abs() > dsum {
-                print!("no");
-            }
-
             *dx = xdx;
             *dy = xdy;
-
-            path = 5;
         } else {
+            path = 6;
             *dx = 0;
             *dy = 0;
-
-            path = 6;
         }
-        if dx.abs() + dy.abs() > dsum {
-            println!("oh no: path={} diff={}", path, dx.abs() + dy.abs() - dsum);
+
+        let dsum1 = dx.abs() as i32 + dy.abs() as i32;
+        if dsum1 > dsum0 {
+            println!("created energy from nothing: path={} diff={}", path, dsum1 - dsum0);
         }
     }
 
