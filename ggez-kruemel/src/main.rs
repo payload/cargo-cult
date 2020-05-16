@@ -269,18 +269,8 @@ impl Cells {
                 dy -= 10 * v as i8;
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
-            } else { // if next.id == Sand {
+            } else {
                 self.update_sand_deflection(&mut cursor0, &mut cursor1, &mut dx, &mut dy, h as i8, v as i8);
-            }
-            if true {} else {
-                if h != 0 {
-                    dx %= 10;
-                    cell.vx = 0;
-                }
-                if v != 0 {
-                    dy %= 10;
-                    cell.vy = 0;
-                }
             }
         }
 
