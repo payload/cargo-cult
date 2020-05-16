@@ -121,6 +121,7 @@ impl Cells {
                     Sand if update_sand => { self.update_sand(x, y, idx); },
                     Water => { self.update_water(x, y, idx); },
                     Wood => { self.update_wood(x, y, idx); }
+                    Special => self.update_special(x, y, idx),
                     _ => {},
                 }
             }
@@ -326,6 +327,20 @@ impl Cells {
         }
     }
 
+    fn update_special(&mut self, x: X, y: Y, _idx: usize) {
+        let t = (self.tick_n as f32) / 30.0;
+        let sx = t.cos() * 2.0;
+        let sy = t.sin() * 2.0;
+        if let Some(idx) = self.checked_idx(x + sx as i32, y + sy as i32) {
+            if self.cells[idx].id == Empty {
+                let mut cell = Cell::sand();
+                cell.vx = (sx * 4.0) as i8;
+                cell.vy = (sy * 4.0) as i8;
+                self.cells[idx] = cell;
+            }
+        }
+    }
+
     fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
     }
 
@@ -448,6 +463,7 @@ impl Cell {
     fn sand() -> Self { Self::new(Sand) }
     fn water() -> Self { Self::new(Water) }
     fn wood() -> Self { Self::new(Wood) }
+    fn special() -> Self { Self::new(Special) }
     fn unavailable() -> Self { Self::new(Unavailable) }
 
     fn char(&self) -> char {
@@ -456,6 +472,7 @@ impl Cell {
             Sand => '.',
             Water => '~',
             Wood => '#',
+            Special => '*',
             Unavailable => 'X',
         }
     }
@@ -473,6 +490,7 @@ impl From<CellId> for Cell {
             Sand => Cell::sand(),
             Water => Cell::water(),
             Wood => Cell::wood(),
+            Special => Cell::special(),
             Unavailable => Cell::unavailable(),
         }
     }
@@ -485,6 +503,7 @@ enum CellId {
     Sand = 1,
     Water = 2,
     Wood = 3,
+    Special = 254,
     Unavailable = 255,
 }
 
@@ -609,6 +628,7 @@ impl EventHandler for MyGame {
             Key2 if !shift => self.paint_primary_id = Sand,
             Key3 if !shift => self.paint_primary_id = Water,
             Key4 if !shift => self.paint_primary_id = Wood,
+            Key5 if !shift => self.paint_primary_id = Special,
             Key1 if shift => self.paint_secondary_id = Empty,
             Key2 if shift => self.paint_secondary_id = Sand,
             Key3 if shift => self.paint_secondary_id = Water,
