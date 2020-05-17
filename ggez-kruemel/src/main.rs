@@ -528,6 +528,7 @@ enum CellId {
 }
 
 struct MyGame {
+    debug_cells: bool,
     cells: Cells,
 
     paint_primary_id: CellId,
@@ -540,25 +541,36 @@ struct MyGame {
 
 impl MyGame {
     fn new(ctx: &mut Context) -> MyGame {
-        let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
+        let debug_cells = false;
         let scale = 8;
-        let w = size.width as i32 / scale;
-        let h = size.height as i32 / scale;
-        let w = 11;
-        let h = 11;
-        let cells = Cells::new(w as usize, h as usize);
-
         let mut game = MyGame {
-            cells,
+            debug_cells,
+            cells: Self::create_cells(debug_cells, scale as usize, ctx),
             paint_primary_id: Sand,
             paint_secondary_id: Empty,
             paint_size: 4,
-            scale: scale as u32,
+            scale,
             paused: true,
         };
 
         debug_water(&mut game.cells);
         game
+    }
+
+    fn switch_cells(&mut self, ctx: &mut Context) {
+        self.debug_cells = !self.debug_cells;
+        self.cells = Self::create_cells(self.debug_cells, self.scale as usize, ctx);
+    }
+
+    fn create_cells(debug_cells: bool, scale: usize, ctx: &mut Context) -> Cells {
+        if debug_cells {
+            Cells::new(11, 11)
+        } else {
+            let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
+            let w = size.width as usize / scale;
+            let h = size.height as usize / scale;
+            Cells::new(w, h)
+        }
     }
 }
 
@@ -586,9 +598,6 @@ impl EventHandler for MyGame {
 
         if !self.paused {
             self.cells.sim_update();
-            if self.cells.w() < 20 {
-                self.paused = true;
-            }
         }
 
         Ok(())
@@ -614,6 +623,7 @@ impl EventHandler for MyGame {
 
             U => self.cells.sim_update(),
             P => self.paused = !self.paused,
+            D => self.switch_cells(ctx),
 
             Minus => self.scale = 1.max(self.scale - 1),
             Equals if shift => self.scale = self.scale + 1,
