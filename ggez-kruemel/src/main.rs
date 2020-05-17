@@ -39,20 +39,7 @@ use CellId::*;
 fn experiment_tick_cells() {
     let mut cells = Cells::new(11, 11);
     
-    cells.paint(5, 10, Sand);
-    cells.paint(5, 9, Sand);
-    cells.paint(5, 8, Sand);
-    cells.paint(4, 10, Sand);
-    cells.paint(4, 9, Sand);
-    cells.paint(4, 8, Sand);
-    cells.paint(3, 10, Sand);
-    cells.paint(3, 9, Sand);
-    cells.paint(3, 8, Sand);
-
-    //let idx = cells.idx(5, 5);
-    //cells.cells[idx] = Cell { dx: -9, vx: -10, ..Cell::sand() };
-
-    //cells.paint(5, 5, Wood);
+    debug_water(&mut cells);
 
     print_frames(7, &mut cells);
     print_frames(2, &mut cells);
@@ -356,30 +343,117 @@ impl Cells {
     fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
     }
 
+    //
+    //
+
     fn update_water(&mut self, x: X, y: Y, idx: usize) {
+        let mut cell = self.cells[idx];
+        assert!(cell.id == Water);
+        cell = self.water_acceleration(x, y, cell);
         
+        let mut dx = cell.dx.saturating_add(cell.vx);
+        let mut dy = cell.dy.saturating_add(cell.vy);
+        
+        let mut loop_count = 0;
+        let mut cursor0 = self.cursor(x, y);
+        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {
+            loop_count += 1;
+            // TODO this can be done in a single line
+            let (h, v) = next_pixel(dx as i32 / 10, dy as i32 / 10);
+            let mut cursor1 = cursor0.add(h, v);
+            let next = self.cell(cursor1.x, cursor1.y);
+
+            if next.id == Empty {
+                dx -= 10 * h as i8;
+                dy -= 10 * v as i8;
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
+                cursor0 = cursor1;
+            } else if false && next.id == Water {
+                let other = &mut self.cells[cursor1.idx];
+                other.dx = other.dx.saturating_add(dx);
+                other.dy = other.dy.saturating_add(dy);
+                dx = 0;
+                dy = 0;
+            } else {
+                let path;
+                let dsum0 = dx.abs() as i32 + dy.abs() as i32;
+
+                let nexts: Vec<CellCursor> = 
+                [cursor1.add(-1, -1), cursor1.add( 0, -1), cursor1.add( 1, -1),
+                    cursor1.add(-1,  0),                              cursor1.add( 1,  0),
+                    cursor1.add(-1,  1), cursor1.add( 0,  1), cursor1.add( 1,  1)]
+                    .into_iter().filter(|next| next.idx != cursor0.idx).cloned().collect();
+                let empties: Vec<CellCursor> = nexts.iter().filter(|next| self.cell_is(next, Empty)).cloned().collect();
+                let waters: Vec<CellCursor> = nexts.iter().filter(|next| self.cell_is(next, Water)).cloned().collect();
+
+                if empties.is_empty() && waters.is_empty() {
+                    path = 1;
+                    dx = 0;
+                    dy = 0;
+                } else if empties.is_empty() && !waters.is_empty() {
+                    path = 2;
+                    let cursor: CellCursor = waters[random::<usize>() % waters.len()];
+                    let other = &mut self.cells[cursor.idx];
+                    let dsum = dx.abs() as i32 + dy.abs() as i32;
+                    let dirsum = h.abs() as i32 + v.abs() as i32;
+                    other.dx = other.dx.saturating_add((h * dsum / dirsum) as i8);
+                    other.dy = other.dy.saturating_add((v * dsum / dirsum) as i8);
+                    dx = 0;
+                    dy = 0;
+                } else {
+                    path = 3;
+                    let cursor: CellCursor = empties[random::<usize>() % empties.len()];
+                    self.cells[cursor0.idx] = self.cells[cursor.idx];
+                    cursor0 = cursor;
+                    dx = 0;
+                    dy = 0;
+                }
+
+                let dsum1 = dx.abs() as i32 + dy.abs() as i32;
+                if dsum1 > dsum0 {
+                    println!("created energy from nothing: path={} diff={}", path, dsum1 - dsum0);
+                }
+            }
+        }
+
+        cell.dx = dx;
+        cell.dy = dy;
+        self.cells[cursor0.idx] = cell;
+        self.loop_count = self.loop_count.max(loop_count);
     }
 
-    fn swap_touch(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
-        let b_idx = self.idx(x, y);
-        let mut a = self.cells[a_idx];
-        let mut b = self.cells[b_idx];
-        let a_touched = a.id != Empty;
-        let b_touched = b.id != Empty;
-        a.flags.set(CellFlags::UPDATED, a_touched);
-        b.flags.set(CellFlags::UPDATED, b_touched);
-        self.cells[a_idx] = b;
-        self.cells[b_idx] = a;
-        (x, y)
+    #[inline(always)]
+    fn water_acceleration(&mut self, x: X, y: Y, mut cell: Cell) -> Cell {
+        let gy = 1;
+        let vx = cell.vx();
+        let vy = cell.vy();
+        let (h, v) = next_pixel(vx, vy + gy);
+        let cursor1 = self.cursor(x + h, y + v);
+        let mut d = self.cell(cursor1.x, cursor1.y);
+        
+        if let Some(poo) = self.checked_idx(x + h, y + v) {
+            self.cells[poo].flags.insert(CellFlags::V_FREE);
+        }
+
+        let accel = gy as i8;
+        if d.id == Empty {
+            cell.vy = cell.vy.saturating_add(accel);
+        } else if d.vy > cell.vy {
+            cell.vy = cell.vy.saturating_add(d.vy.saturating_sub(cell.vy).min(accel));
+        } else if d.id == Water {
+            d.vx = d.vx.saturating_add(h as i8);
+            d.vy = d.vy.saturating_add(v as i8);
+            self.cells[cursor1.idx] = d;
+        } else {
+            cell.vx -= cell.vx.signum();
+            cell.vy -= cell.vy.signum();
+        }
+
+        cell
     }
 
-    fn swap(&mut self, a_idx: usize, x: X, y: Y) -> (X, Y) {
-        let b_idx = self.idx(x, y);
-        let a = self.cells[a_idx];
-        let b = self.cells[b_idx];
-        self.cells[a_idx] = b;
-        self.cells[b_idx] = a;
-        (x, y)
+    fn cell_is(&self, cursor: &CellCursor, id: CellId) -> bool {
+        self.in_bounds(cursor.x, cursor.y) && self.cells[cursor.idx].id == id
     }
 }
 
@@ -470,8 +544,8 @@ impl MyGame {
         let scale = 8;
         let w = size.width as i32 / scale;
         let h = size.height as i32 / scale;
-        // let w = 10;
-        // let h = 20;
+        let w = 11;
+        let h = 11;
         let cells = Cells::new(w as usize, h as usize);
 
         let mut game = MyGame {
@@ -483,31 +557,7 @@ impl MyGame {
             paused: true,
         };
 
-        let w2 = w/2 - 1;
-        // game.cells.paint(w2+0, h-1, Sand);
-        game.cells.paint(w2+1, h-1, Sand);
-        // game.cells.paint(w2+2, h-1, Sand);
-        // game.cells.paint(w2+0, h-2, Sand);
-        game.cells.paint(w2+1, h-2, Sand);
-        // game.cells.paint(w2+2, h-2, Sand);
-
-        // game.cells.paint(w2-1, h-2, Wood);
-        // game.cells.paint(w2+3, h-2, Wood);
-        game.cells.paint(w2-0, h-2, Wood);
-        game.cells.paint(w2+2, h-2, Wood);
-
-        // game.cells.paint(0, h-1, Sand);
-        // game.cells.paint(0, h-2, Sand);
-        // game.cells.paint(0, h-3, Sand);
-        // game.cells.paint(0, h-4, Sand);
-        // game.cells.paint(0, h-5, Sand);
-        // game.cells.paint(0, h-6, Sand);
-
-        // game.cells.paint(w2-1, h-1, Wood);
-        // game.cells.paint(w2-0, h-1, Wood);
-        // game.cells.paint(w2+1, h-1, Wood);
-        // game.cells.paint(w2-0, h-2, Sand);
-
+        debug_water(&mut game.cells);
         game
     }
 }
@@ -784,4 +834,29 @@ fn choose_direction_factor(x: i32, l: bool, r: bool) -> i32 {
         (false, true) => 1,
         (true, true) => random_signum(x),
     }
+}
+
+fn debug_water(cells: &mut Cells) {
+    /*
+    let rand = |p| random::<f64>() < p;
+    for_circle(self.paint_size, &mut |dx, dy| {
+        if rand(0.8) {
+            self.cells.paint(self.cells.w()/2 -1 + dx, 5 + dy, Water);
+        }
+    });
+    */
+
+    let w2 = cells.w() / 2;
+    cells.paint(w2-1, 10, Water);
+    cells.paint(w2-1, 9, Water);
+    cells.paint(w2-1, 8, Water);
+    cells.paint(w2, 10, Water);
+    cells.paint(w2, 9, Water);
+    cells.paint(w2, 8, Water);
+    cells.paint(w2, 7, Water);
+    cells.paint(w2, 6, Water);
+    cells.paint(w2, 5, Water);
+    cells.paint(w2+1, 10, Water);
+    cells.paint(w2+1, 9, Water);
+    cells.paint(w2+1, 8, Water);
 }
