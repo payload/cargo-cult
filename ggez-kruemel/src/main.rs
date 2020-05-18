@@ -530,6 +530,7 @@ enum CellId {
 struct MyGame {
     debug_cells: bool,
     cells: Cells,
+    particles: Particles,
 
     paint_primary_id: CellId,
     paint_secondary_id: CellId,
@@ -546,6 +547,7 @@ impl MyGame {
         let mut game = MyGame {
             debug_cells,
             cells: Self::create_cells(debug_cells, scale as usize, ctx),
+            particles: Self::create_particles(debug_cells, scale as usize, ctx),
             paint_primary_id: Sand,
             paint_secondary_id: Empty,
             paint_size: 4,
@@ -570,6 +572,17 @@ impl MyGame {
             let w = size.width as usize / scale;
             let h = size.height as usize / scale;
             Cells::new(w, h)
+        }
+    }
+
+    fn create_particles(debug_cells: bool, scale: usize, ctx: &mut Context) -> Particles {
+        if debug_cells {
+            Particles::new(11, 11).add_dam()
+        } else {
+            let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
+            let w = size.width as usize / scale;
+            let h = size.height as usize / scale;
+            Particles::new(w, h).add_dam()
         }
     }
 }
@@ -598,6 +611,7 @@ impl EventHandler for MyGame {
 
         if !self.paused {
             self.cells.sim_update();
+            self.particles.tick(&self.cells);
         }
 
         Ok(())
@@ -671,6 +685,10 @@ impl MyGame {
                     draw(x, y, cell_color_real(cell));
                 }
             }
+        }
+
+        for p in self.particles.particles.iter() {
+            draw(p.x(), p.y(), (0.0, 0.0, 1.0));
         }
 
         if self.cells.w() < 20 {
@@ -870,3 +888,169 @@ fn debug_water(cells: &mut Cells) {
     cells.paint(w2+1, 9, Water);
     cells.paint(w2+1, 8, Water);
 }
+
+struct Particles {
+    particles: Vec<Particle>,
+    bounds: Bounds,
+}
+
+struct Particle {
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    fx: f32,
+    fy: f32,
+    rho: f32,
+    p: f32,
+}
+
+impl Particles {
+    fn new(w: usize, h: usize) -> Particles {
+        Self {
+            particles: Vec::new(),
+            bounds: Bounds { x: 0.0, y: 0.0, w: w as f32, h: h as f32 }
+        }
+    }
+
+    fn add_dam(mut self) -> Self {
+        let bounds = Bounds {
+            x: self.bounds.x + 0.4 * self.bounds.w,
+            y: self.bounds.y + 0.6 * self.bounds.h,
+            w: self.bounds.w * 0.2,
+            h: self.bounds.h * 0.4,
+        };
+        for iy in 0..bounds.w as i32 {
+            for ix in 0..bounds.h as i32 {
+                let x: f32 = 0.2 * random::<f32>() + bounds.x + ix as f32;
+                let y: f32 = 0.2 * random::<f32>() + bounds.y + iy as f32;
+                if bounds.inside(x, y) {
+                    self.particles.push(Particle::new(x, y));
+                }
+            }
+        }
+        self
+    }
+
+    fn tick(&mut self, cells: &Cells) {
+        self.compute_density_pressure();
+        self.compute_forces();
+        self.integrate(cells);
+    }
+
+    fn integrate(&mut self, cells: &Cells) {
+        for p in self.particles.iter_mut() {
+            let ff = DT / p.rho;
+            p.vx += ff * p.fx;
+            p.vy += ff * p.fy;
+            p.x += DT * p.vx;
+            p.y += DT * p.vy;
+
+            let x = p.x as i32;
+            let y = p.y as i32;
+
+            if cells.cell_id(x, y) != Empty {
+                p.vx *= BOUND_DAMPING;
+                p.vy *= BOUND_DAMPING;
+            }
+        }
+    }
+
+    fn compute_density_pressure(&mut self) {
+        let len = self.particles.len();
+        for i in 0..len {
+            let mut rho = 0.0;
+            let pi = &self.particles[i];
+            for j in 0..len {
+                let pj = &self.particles[j];
+                let dx = pj.x - pi.x;
+                let dy = pj.y - pi.y;
+                let near = H_SQUARE - dx*dx - dy*dy;
+                if near > 0.0 {
+                    rho += MASS * POLYG * near * near * near;
+                }
+            }
+            let pi = &mut self.particles[i];
+            pi.rho = rho;
+            pi.p = GAS_CONST * (rho - REST_DENS);
+        }
+    }
+
+    fn compute_forces(&mut self) {
+        let len = self.particles.len();
+        for i in 0..len {
+            let pi = &self.particles[i];
+
+            let mut fpx = 0.0;
+            let mut fpy = 0.0;
+            let mut fvx = 0.0;
+            let mut fvy = 0.0;
+
+            for j in 0..len {
+                let pj = &self.particles[j];
+
+                if i == j {
+                    continue;
+                }
+
+                let dx = pj.x - pi.x;
+                let dy = pj.y - pi.y;
+                let dist =  (dx*dx + dy*dy).sqrt();
+                let nx = dx / dist;
+                let ny = dy / dist;
+                let near = H - dist;
+                let pressure = MASS * (pi.p + pj.p) / (2.0 * pj.rho) * SPIKY_GRAD * near * near;
+                let viscosity = VISC * MASS * 1.0 / pj.rho * VISC_LAP * near;
+
+                if near > 0.0 {
+                    fpx -= nx * pressure;
+                    fpy -= ny * pressure;
+                    fvx += (pj.vx - pi.vx) * viscosity;
+                    fvy += (pj.vy - pi.vy) * viscosity;
+                }
+            }
+
+            let pi = &mut self.particles[i];
+            pi.fx = fpx + fvx;
+            pi.fy = fpy + fvy + G * pi.rho;
+        }
+    }
+}
+
+impl Particle {
+    fn new(x: f32, y: f32) -> Self {
+        Self { x, y, vx: 0.0, vy: 0.0, fx: 0.0, fy: 0.0, rho: 0.0, p: 0.0 }
+    }
+
+    fn x(&self) -> i32 { self.x.min(512.0).max(-512.0) as i32 }
+    fn y(&self) -> i32 { self.y.min(512.0).max(-512.0) as i32 }
+}
+
+struct Bounds {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+}
+
+impl Bounds {
+    fn inside(&self, x: f32, y: f32) -> bool {
+        x >= self.x && x < self.x + self.w && y >= self.y && y < self.y + self.h
+    }
+    fn r(&self) -> f32 { self.x + self.w }
+    fn b(&self) -> f32 { self.y + self.h }
+}
+
+const G: f32 = 12000.0 * 9.8;
+const H: f32 = 2.0;
+const H_SQUARE: f32 = H * H;
+const MASS: f32 = 65.0 / 8.0;
+const VISC: f32 = 100.0;
+const REST_DENS: f32 = 1000.0;
+const GAS_CONST: f32 = 2000.0;
+const DT: f32 = 0.0008;
+const BOUND_DAMPING: f32 = -0.5;
+
+const POLYG: f32 = 315.0 / (65.0 * 3.14159 * H*H*H*H*H*H*H*H*H);
+const SPIKY_GRAD: f32 = -45.0 / (3.14159 * H*H*H*H*H*H);
+const VISC_LAP: f32 = 45.0 / (3.14159 * H*H*H*H*H*H);
