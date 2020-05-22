@@ -596,11 +596,17 @@ impl EventHandler for MyGame {
         let rand = |p| random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
-            for_circle(self.paint_size, &mut |dx, dy| {
-                if rand(0.8) {
-                    self.cells.paint(x + dx, y + dy, self.paint_primary_id);
-                }
-            });
+            if self.paint_primary_id == Water {
+                for_circle(self.paint_size, &mut |dx, dy| {
+                    self.particles.particles.push(Particle::new((x + dx) as f32, (y + dy) as f32));
+                });
+            } else {
+                for_circle(self.paint_size, &mut |dx, dy| {
+                    if rand(0.8) {
+                        self.cells.paint(x + dx, y + dy, self.paint_primary_id);
+                    }
+                });
+            }
         } else if button_pressed(ctx, MouseButton::Right) {
             for_circle(self.paint_size, &mut |dx, dy| {
                 if rand(0.8) {
@@ -894,6 +900,7 @@ struct Particles {
     bounds: Bounds,
 }
 
+#[derive(Debug)]
 struct Particle {
     x: f32,
     y: f32,
@@ -940,16 +947,41 @@ impl Particles {
 
     fn integrate(&mut self, cells: &Cells) {
         for p in self.particles.iter_mut() {
+            println!("{:?}", p);
             let ff = DT / p.rho;
             p.vx += ff * p.fx;
             p.vy += ff * p.fy;
-            p.x += DT * p.vx;
-            p.y += DT * p.vy;
+            p.x += (DT * p.vx).max(-30.0).min(30.0);
+            p.y += (DT * p.vy).max(-30.0).min(30.0);
 
-            let x = p.x as i32;
-            let y = p.y as i32;
+            let cursor = cells.cursor(p.x(), p.y());
 
-            if cells.cell_id(x, y) != Empty {
+            if !cells.cell_is(&cursor, Empty) {
+                let mut d = 1;
+                loop {
+                    let mut empties = Vec::with_capacity(128);
+                    for i in -d..=d {
+                        let c = cursor.add(i, -d);
+                        if cells.cell_is(&c, Empty) { empties.push(c); }
+                        let c = cursor.add(i,  d);
+                        if cells.cell_is(&c, Empty) { empties.push(c); }
+                        let c = cursor.add(-d, i);
+                        if cells.cell_is(&c, Empty) { empties.push(c); }
+                        let c = cursor.add( d, i);
+                        if cells.cell_is(&c, Empty) { empties.push(c); }
+                    }
+
+                    if empties.is_empty() {
+                        d += 1;
+                    } else {
+                        let empty: CellCursor = empties[random::<usize>() % empties.len()];
+                        p.x = empty.x as f32;
+                        p.y = empty.y as f32;
+                        break;
+                    }
+                }
+                println!("d {} {} {}", d, cursor.x, cursor.y);
+
                 p.vx *= BOUND_DAMPING;
                 p.vy *= BOUND_DAMPING;
             }
@@ -966,13 +998,14 @@ impl Particles {
                 let dx = pj.x - pi.x;
                 let dy = pj.y - pi.y;
                 let near = H_SQUARE - dx*dx - dy*dy;
-                if near > 0.0 {
+                if (dx <= 1.0 && dx >= -1.0) || (dy <= 1.0 && dy >= -1.0) {
                     rho += MASS * POLYG * near * near * near;
                 }
             }
             let pi = &mut self.particles[i];
             pi.rho = rho;
             pi.p = GAS_CONST * (rho - REST_DENS);
+            println!("rho {}", rho);
         }
     }
 
@@ -1044,13 +1077,16 @@ impl Bounds {
 const G: f32 = 12000.0 * 9.8;
 const H: f32 = 2.0;
 const H_SQUARE: f32 = H * H;
-const MASS: f32 = 65.0 / 8.0;
-const VISC: f32 = 100.0;
-const REST_DENS: f32 = 1000.0;
-const GAS_CONST: f32 = 2000.0;
+const MASS: f32 = 1.0;
+const VISC: f32 = 0.0;
+const REST_DENS: f32 = 1.0;
+const GAS_CONST: f32 = 1.0;
 const DT: f32 = 0.0008;
 const BOUND_DAMPING: f32 = -0.5;
 
-const POLYG: f32 = 315.0 / (65.0 * 3.14159 * H*H*H*H*H*H*H*H*H);
-const SPIKY_GRAD: f32 = -45.0 / (3.14159 * H*H*H*H*H*H);
-const VISC_LAP: f32 = 45.0 / (3.14159 * H*H*H*H*H*H);
+const POLYG: f32 = 1.0 / H;
+const SPIKY_GRAD: f32 = 1.0 / H;
+const VISC_LAP: f32 = 1.0 / H;
+// const POLYG: f32 = 315.0 / (65.0 * 3.14159 * H*H*H*H*H*H*H*H*H);
+// const SPIKY_GRAD: f32 = -45.0 / (3.14159 * H*H*H*H*H*H);
+// const VISC_LAP: f32 = 45.0 / (3.14159 * H*H*H*H*H*H);
