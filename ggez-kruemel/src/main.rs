@@ -105,7 +105,7 @@ impl Cells {
                 if cell.flags.contains(CellFlags::UPDATED) { continue }
                 match cell.id {
                     Sand => self.update_sand(x, y, idx),
-                    Water => self.update_water(x, y, idx),
+                    Water => self.water_update(x, y, idx),
                     Wood =>self.update_wood(x, y, idx),
                     Special => self.update_special(x, y, idx),
                     _ => {},
@@ -346,80 +346,14 @@ impl Cells {
     //
     //
 
-    fn update_water(&mut self, x: X, y: Y, idx: usize) {
-        let mut cell = self.cells[idx];
-        assert!(cell.id == Water);
-        cell = self.water_acceleration(x, y, cell);
-        
-        let mut dx = cell.dx.saturating_add(cell.vx);
-        let mut dy = cell.dy.saturating_add(cell.vy);
-        
-        let mut loop_count = 0;
+    fn water_update(&mut self, x: X, y: Y, idx: usize) {
         let mut cursor0 = self.cursor(x, y);
-        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {
-            loop_count += 1;
-            // TODO this can be done in a single line
-            let (h, v) = next_pixel(dx as i32 / 10, dy as i32 / 10);
-            let mut cursor1 = cursor0.add(h, v);
-            let next = self.cell(cursor1.x, cursor1.y);
+        let mut cell = self.cells[cursor0.idx];
+        assert!(cell.id == Water);
 
-            if next.id == Empty {
-                dx -= 10 * h as i8;
-                dy -= 10 * v as i8;
-                self.cells[cursor0.idx] = self.cells[cursor1.idx];
-                cursor0 = cursor1;
-            } else if false && next.id == Water {
-                let other = &mut self.cells[cursor1.idx];
-                other.dx = other.dx.saturating_add(dx);
-                other.dy = other.dy.saturating_add(dy);
-                dx = 0;
-                dy = 0;
-            } else {
-                let path;
-                let dsum0 = dx.abs() as i32 + dy.abs() as i32;
+        
 
-                let nexts: Vec<CellCursor> = 
-                [cursor1.add(-1, -1), cursor1.add( 0, -1), cursor1.add( 1, -1),
-                    cursor1.add(-1,  0),                              cursor1.add( 1,  0),
-                    cursor1.add(-1,  1), cursor1.add( 0,  1), cursor1.add( 1,  1)]
-                    .into_iter().filter(|next| next.idx != cursor0.idx).cloned().collect();
-                let empties: Vec<CellCursor> = nexts.iter().filter(|next| self.cell_is(next, Empty)).cloned().collect();
-                let waters: Vec<CellCursor> = nexts.iter().filter(|next| self.cell_is(next, Water)).cloned().collect();
-
-                if empties.is_empty() && waters.is_empty() {
-                    path = 1;
-                    dx = 0;
-                    dy = 0;
-                } else if empties.is_empty() && !waters.is_empty() {
-                    path = 2;
-                    let cursor: CellCursor = waters[random::<usize>() % waters.len()];
-                    let other = &mut self.cells[cursor.idx];
-                    let dsum = dx.abs() as i32 + dy.abs() as i32;
-                    let dirsum = h.abs() as i32 + v.abs() as i32;
-                    other.dx = other.dx.saturating_add((h * dsum / dirsum) as i8);
-                    other.dy = other.dy.saturating_add((v * dsum / dirsum) as i8);
-                    dx = 0;
-                    dy = 0;
-                } else {
-                    path = 3;
-                    let cursor: CellCursor = empties[random::<usize>() % empties.len()];
-                    self.cells[cursor0.idx] = self.cells[cursor.idx];
-                    cursor0 = cursor;
-                    dx = 0;
-                    dy = 0;
-                }
-
-                let dsum1 = dx.abs() as i32 + dy.abs() as i32;
-                if dsum1 > dsum0 {
-                    println!("created energy from nothing: path={} diff={}", path, dsum1 - dsum0);
-                }
-            }
-        }
-
-        cell.dx = dx;
-        cell.dy = dy;
         self.cells[cursor0.idx] = cell;
-        self.loop_count = self.loop_count.max(loop_count);
     }
 
     #[inline(always)]
@@ -455,6 +389,17 @@ impl Cells {
     fn cell_is(&self, cursor: &CellCursor, id: CellId) -> bool {
         self.in_bounds(cursor.x, cursor.y) && self.cells[cursor.idx].id == id
     }
+
+    fn cell_mass(&self, cursor: &CellCursor) -> f32 {
+        let id = if self.in_bounds(cursor.x, cursor.y) { self.cells[cursor.idx].id } else { Unavailable };
+        match id {
+            Water => 1.0,
+            Sand => 2.0,
+            Wood => 0.9,
+            Special => 2.0,
+            Unavailable => 100.0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -466,6 +411,8 @@ struct Cell {
     random: f32,
     flags: CellFlags,
     id: CellId,
+
+    rho: f32,
 }
 
 bitflags! {
@@ -478,7 +425,7 @@ bitflags! {
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, random: random(), flags: CellFlags::empty(), id } }
+    fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, random: random(), flags: CellFlags::empty(), id, rho: std::f32::NAN } }
     fn empty() -> Self { Self { ..Self::new(Empty) } }
     fn sand() -> Self { Self::new(Sand) }
     fn water() -> Self { Self::new(Water) }
@@ -501,6 +448,13 @@ impl Cell {
     fn vy(&self) -> i32 { self.vy as i32 }
     fn set_dx(&mut self, v: i32) { self.dx = v as i8; }
     fn set_dy(&mut self, v: i32) { self.dy = v as i8; }
+
+    fn rho(&mut self, cursor: &CellCursor, cells: &Cells) -> f32 {
+        if self.rho.is_nan() {
+            self.rho = calc_density_contribution(cursor, cells);      
+        }
+        self.rho
+    }
 }
 
 impl From<CellId> for Cell {
@@ -577,12 +531,12 @@ impl MyGame {
 
     fn create_particles(debug_cells: bool, scale: usize, ctx: &mut Context) -> Particles {
         if debug_cells {
-            Particles::new(11, 11).add_dam()
+            Particles::new(11, 11)
         } else {
             let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
             let w = size.width as usize / scale;
             let h = size.height as usize / scale;
-            Particles::new(w, h).add_dam()
+            Particles::new(w, h)
         }
     }
 }
@@ -1090,3 +1044,11 @@ const VISC_LAP: f32 = 1.0 / H;
 // const POLYG: f32 = 315.0 / (65.0 * 3.14159 * H*H*H*H*H*H*H*H*H);
 // const SPIKY_GRAD: f32 = -45.0 / (3.14159 * H*H*H*H*H*H);
 // const VISC_LAP: f32 = 45.0 / (3.14159 * H*H*H*H*H*H);
+
+fn calc_density_contribution(cursor: &CellCursor, cells: &Cells) -> f32 {
+    let mut rho = 0.0;
+    let other = cursor.add(-1, -1);
+    let f = 1;
+    let mass = cells.cell_mass(&other);
+    rho
+}
