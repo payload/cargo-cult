@@ -356,36 +356,6 @@ impl Cells {
         self.cells[cursor0.idx] = cell;
     }
 
-    #[inline(always)]
-    fn water_acceleration(&mut self, x: X, y: Y, mut cell: Cell) -> Cell {
-        let gy = 1;
-        let vx = cell.vx();
-        let vy = cell.vy();
-        let (h, v) = next_pixel(vx, vy + gy);
-        let cursor1 = self.cursor(x + h, y + v);
-        let mut d = self.cell(cursor1.x, cursor1.y);
-        
-        if let Some(poo) = self.checked_idx(x + h, y + v) {
-            self.cells[poo].flags.insert(CellFlags::V_FREE);
-        }
-
-        let accel = gy as i8;
-        if d.id == Empty {
-            cell.vy = cell.vy.saturating_add(accel);
-        } else if d.vy > cell.vy {
-            cell.vy = cell.vy.saturating_add(d.vy.saturating_sub(cell.vy).min(accel));
-        } else if d.id == Water {
-            d.vx = d.vx.saturating_add(h as i8);
-            d.vy = d.vy.saturating_add(v as i8);
-            self.cells[cursor1.idx] = d;
-        } else {
-            cell.vx -= cell.vx.signum();
-            cell.vy -= cell.vy.signum();
-        }
-
-        cell
-    }
-
     fn cell_is(&self, cursor: &CellCursor, id: CellId) -> bool {
         self.in_bounds(cursor.x, cursor.y) && self.cells[cursor.idx].id == id
     }
@@ -393,6 +363,7 @@ impl Cells {
     fn cell_mass(&self, cursor: &CellCursor) -> f32 {
         let id = if self.in_bounds(cursor.x, cursor.y) { self.cells[cursor.idx].id } else { Unavailable };
         match id {
+            Empty => 0.0,
             Water => 1.0,
             Sand => 2.0,
             Wood => 0.9,
@@ -408,6 +379,8 @@ struct Cell {
     vy: i8,
     dx: i8,
     dy: i8,
+    fx: i8,
+    fy: i8,
     random: f32,
     flags: CellFlags,
     id: CellId,
@@ -425,7 +398,7 @@ bitflags! {
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 impl Cell {
-    fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, random: random(), flags: CellFlags::empty(), id, rho: std::f32::NAN } }
+    fn new(id: CellId) -> Self { Self { vx: 0, vy: 0, dx: 0, dy: 0, fx: 0, fy: 0, random: random(), flags: CellFlags::empty(), id, rho: std::f32::NAN } }
     fn empty() -> Self { Self { ..Self::new(Empty) } }
     fn sand() -> Self { Self::new(Sand) }
     fn water() -> Self { Self::new(Water) }
@@ -448,13 +421,6 @@ impl Cell {
     fn vy(&self) -> i32 { self.vy as i32 }
     fn set_dx(&mut self, v: i32) { self.dx = v as i8; }
     fn set_dy(&mut self, v: i32) { self.dy = v as i8; }
-
-    fn rho(&mut self, cursor: &CellCursor, cells: &Cells) -> f32 {
-        if self.rho.is_nan() {
-            self.rho = calc_density_contribution(cursor, cells);      
-        }
-        self.rho
-    }
 }
 
 impl From<CellId> for Cell {
@@ -484,7 +450,6 @@ enum CellId {
 struct MyGame {
     debug_cells: bool,
     cells: Cells,
-    particles: Particles,
 
     paint_primary_id: CellId,
     paint_secondary_id: CellId,
@@ -497,11 +462,10 @@ struct MyGame {
 impl MyGame {
     fn new(ctx: &mut Context) -> MyGame {
         let debug_cells = false;
-        let scale = 8;
+        let scale = 32;
         let mut game = MyGame {
             debug_cells,
             cells: Self::create_cells(debug_cells, scale as usize, ctx),
-            particles: Self::create_particles(debug_cells, scale as usize, ctx),
             paint_primary_id: Sand,
             paint_secondary_id: Empty,
             paint_size: 4,
@@ -528,17 +492,6 @@ impl MyGame {
             Cells::new(w, h)
         }
     }
-
-    fn create_particles(debug_cells: bool, scale: usize, ctx: &mut Context) -> Particles {
-        if debug_cells {
-            Particles::new(11, 11)
-        } else {
-            let size = ggez::graphics::window(ctx).get_inner_size().unwrap();
-            let w = size.width as usize / scale;
-            let h = size.height as usize / scale;
-            Particles::new(w, h)
-        }
-    }
 }
 
 impl EventHandler for MyGame {
@@ -550,17 +503,11 @@ impl EventHandler for MyGame {
         let rand = |p| random::<f64>() < p;
 
         if button_pressed(ctx, MouseButton::Left) {
-            if self.paint_primary_id == Water {
-                for_circle(self.paint_size, &mut |dx, dy| {
-                    self.particles.particles.push(Particle::new((x + dx) as f32, (y + dy) as f32));
-                });
-            } else {
-                for_circle(self.paint_size, &mut |dx, dy| {
-                    if rand(0.8) {
-                        self.cells.paint(x + dx, y + dy, self.paint_primary_id);
-                    }
-                });
-            }
+            for_circle(self.paint_size, &mut |dx, dy| {
+                if rand(0.8) {
+                    self.cells.paint(x + dx, y + dy, self.paint_primary_id);
+                }
+            });
         } else if button_pressed(ctx, MouseButton::Right) {
             for_circle(self.paint_size, &mut |dx, dy| {
                 if rand(0.8) {
@@ -571,7 +518,6 @@ impl EventHandler for MyGame {
 
         if !self.paused {
             self.cells.sim_update();
-            self.particles.tick(&self.cells);
         }
 
         Ok(())
@@ -647,24 +593,19 @@ impl MyGame {
             }
         }
 
-        for p in self.particles.particles.iter() {
-            draw(p.x(), p.y(), (0.0, 0.0, 1.0));
+        if let Ok(mesh) = builder.build(ctx) {
+            graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
         }
 
-        if self.cells.w() < 20 {
+        if true {
             for y in 0..=self.cells.h() {
                 for x in 0..=self.cells.w() {
                     self.cell_debug(ctx, x as f32, y as f32, &self.cells.cell(x, y));
-                    
                 }
             }
         }
 
-        if let Ok(mesh) = builder.build(ctx) {
-            graphics::draw(ctx, &mesh, graphics::DrawParam::default())
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 
     fn cell_debug(&mut self, ctx: &mut Context, x: f32, y: f32, cell: &Cell) {
@@ -672,7 +613,7 @@ impl MyGame {
         let w = self.cells.w() as f32;
         let params = graphics::DrawParam::new()
             .color(graphics::BLACK)
-            .dest([(x + w) * s * 3.0, y * s * 3.0])
+            .dest([x * s, y * s])
             .scale([0.75, 0.75]);
 
         if cell.id != Empty {
@@ -694,7 +635,7 @@ fn cell_color_real(cell: Cell) -> (f32, f32, f32) {
 
 fn cell_text_debug(cell: &Cell) -> String {
     let j = if cell.flags.contains(CellFlags::TRIED) { 'x' } else { ' ' };
-    format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.dx, j, cell.dy)
+    format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.fx, j, cell.fy)
 }
 
 fn hsl(h: f32, s: f32, l: f32) -> Hsl<> {
@@ -847,208 +788,4 @@ fn debug_water(cells: &mut Cells) {
     cells.paint(w2+1, 10, Water);
     cells.paint(w2+1, 9, Water);
     cells.paint(w2+1, 8, Water);
-}
-
-struct Particles {
-    particles: Vec<Particle>,
-    bounds: Bounds,
-}
-
-#[derive(Debug)]
-struct Particle {
-    x: f32,
-    y: f32,
-    vx: f32,
-    vy: f32,
-    fx: f32,
-    fy: f32,
-    rho: f32,
-    p: f32,
-}
-
-impl Particles {
-    fn new(w: usize, h: usize) -> Particles {
-        Self {
-            particles: Vec::new(),
-            bounds: Bounds { x: 0.0, y: 0.0, w: w as f32, h: h as f32 }
-        }
-    }
-
-    fn add_dam(mut self) -> Self {
-        let bounds = Bounds {
-            x: self.bounds.x + 0.4 * self.bounds.w,
-            y: self.bounds.y + 0.6 * self.bounds.h,
-            w: self.bounds.w * 0.2,
-            h: self.bounds.h * 0.4,
-        };
-        for iy in 0..bounds.w as i32 {
-            for ix in 0..bounds.h as i32 {
-                let x: f32 = 0.2 * random::<f32>() + bounds.x + ix as f32;
-                let y: f32 = 0.2 * random::<f32>() + bounds.y + iy as f32;
-                if bounds.inside(x, y) {
-                    self.particles.push(Particle::new(x, y));
-                }
-            }
-        }
-        self
-    }
-
-    fn tick(&mut self, cells: &Cells) {
-        self.compute_density_pressure();
-        self.compute_forces();
-        self.integrate(cells);
-    }
-
-    fn integrate(&mut self, cells: &Cells) {
-        for p in self.particles.iter_mut() {
-            println!("{:?}", p);
-            let ff = DT / p.rho;
-            p.vx += ff * p.fx;
-            p.vy += ff * p.fy;
-            p.x += (DT * p.vx).max(-30.0).min(30.0);
-            p.y += (DT * p.vy).max(-30.0).min(30.0);
-
-            let cursor = cells.cursor(p.x(), p.y());
-
-            if !cells.cell_is(&cursor, Empty) {
-                let mut d = 1;
-                loop {
-                    let mut empties = Vec::with_capacity(128);
-                    for i in -d..=d {
-                        let c = cursor.add(i, -d);
-                        if cells.cell_is(&c, Empty) { empties.push(c); }
-                        let c = cursor.add(i,  d);
-                        if cells.cell_is(&c, Empty) { empties.push(c); }
-                        let c = cursor.add(-d, i);
-                        if cells.cell_is(&c, Empty) { empties.push(c); }
-                        let c = cursor.add( d, i);
-                        if cells.cell_is(&c, Empty) { empties.push(c); }
-                    }
-
-                    if empties.is_empty() {
-                        d += 1;
-                    } else {
-                        let empty: CellCursor = empties[random::<usize>() % empties.len()];
-                        p.x = empty.x as f32;
-                        p.y = empty.y as f32;
-                        break;
-                    }
-                }
-                println!("d {} {} {}", d, cursor.x, cursor.y);
-
-                p.vx *= BOUND_DAMPING;
-                p.vy *= BOUND_DAMPING;
-            }
-        }
-    }
-
-    fn compute_density_pressure(&mut self) {
-        let len = self.particles.len();
-        for i in 0..len {
-            let mut rho = 0.0;
-            let pi = &self.particles[i];
-            for j in 0..len {
-                let pj = &self.particles[j];
-                let dx = pj.x - pi.x;
-                let dy = pj.y - pi.y;
-                let near = H_SQUARE - dx*dx - dy*dy;
-                if (dx <= 1.0 && dx >= -1.0) || (dy <= 1.0 && dy >= -1.0) {
-                    rho += MASS * POLYG * near * near * near;
-                }
-            }
-            let pi = &mut self.particles[i];
-            pi.rho = rho;
-            pi.p = GAS_CONST * (rho - REST_DENS);
-            println!("rho {}", rho);
-        }
-    }
-
-    fn compute_forces(&mut self) {
-        let len = self.particles.len();
-        for i in 0..len {
-            let pi = &self.particles[i];
-
-            let mut fpx = 0.0;
-            let mut fpy = 0.0;
-            let mut fvx = 0.0;
-            let mut fvy = 0.0;
-
-            for j in 0..len {
-                let pj = &self.particles[j];
-
-                if i == j {
-                    continue;
-                }
-
-                let dx = pj.x - pi.x;
-                let dy = pj.y - pi.y;
-                let dist =  (dx*dx + dy*dy).sqrt();
-                let nx = dx / dist;
-                let ny = dy / dist;
-                let near = H - dist;
-                let pressure = MASS * (pi.p + pj.p) / (2.0 * pj.rho) * SPIKY_GRAD * near * near;
-                let viscosity = VISC * MASS * 1.0 / pj.rho * VISC_LAP * near;
-
-                if near > 0.0 {
-                    fpx -= nx * pressure;
-                    fpy -= ny * pressure;
-                    fvx += (pj.vx - pi.vx) * viscosity;
-                    fvy += (pj.vy - pi.vy) * viscosity;
-                }
-            }
-
-            let pi = &mut self.particles[i];
-            pi.fx = fpx + fvx;
-            pi.fy = fpy + fvy + G * pi.rho;
-        }
-    }
-}
-
-impl Particle {
-    fn new(x: f32, y: f32) -> Self {
-        Self { x, y, vx: 0.0, vy: 0.0, fx: 0.0, fy: 0.0, rho: 0.0, p: 0.0 }
-    }
-
-    fn x(&self) -> i32 { self.x.min(512.0).max(-512.0) as i32 }
-    fn y(&self) -> i32 { self.y.min(512.0).max(-512.0) as i32 }
-}
-
-struct Bounds {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-}
-
-impl Bounds {
-    fn inside(&self, x: f32, y: f32) -> bool {
-        x >= self.x && x < self.x + self.w && y >= self.y && y < self.y + self.h
-    }
-    fn r(&self) -> f32 { self.x + self.w }
-    fn b(&self) -> f32 { self.y + self.h }
-}
-
-const G: f32 = 12000.0 * 9.8;
-const H: f32 = 2.0;
-const H_SQUARE: f32 = H * H;
-const MASS: f32 = 1.0;
-const VISC: f32 = 0.0;
-const REST_DENS: f32 = 1.0;
-const GAS_CONST: f32 = 1.0;
-const DT: f32 = 0.0008;
-const BOUND_DAMPING: f32 = -0.5;
-
-const POLYG: f32 = 1.0 / H;
-const SPIKY_GRAD: f32 = 1.0 / H;
-const VISC_LAP: f32 = 1.0 / H;
-// const POLYG: f32 = 315.0 / (65.0 * 3.14159 * H*H*H*H*H*H*H*H*H);
-// const SPIKY_GRAD: f32 = -45.0 / (3.14159 * H*H*H*H*H*H);
-// const VISC_LAP: f32 = 45.0 / (3.14159 * H*H*H*H*H*H);
-
-fn calc_density_contribution(cursor: &CellCursor, cells: &Cells) -> f32 {
-    let mut rho = 0.0;
-    let other = cursor.add(-1, -1);
-    let f = 1;
-    let mass = cells.cell_mass(&other);
-    rho
 }
