@@ -95,6 +95,14 @@ impl Cells {
             cell.flags.remove(CellFlags::UPDATED);
             cell.flags.remove(CellFlags::TRIED);
             cell.flags.remove(CellFlags::V_FREE);
+            cell.fx = 0;
+            cell.fy = 1;
+        }
+
+        for y in 0..h {
+            for x in 0..w {
+                self.force_update(&self.cursor(x, y));
+            }
         }
 
         for y in bottom_to_top {
@@ -105,9 +113,9 @@ impl Cells {
                 if cell.flags.contains(CellFlags::UPDATED) { continue }
                 match cell.id {
                     Sand => self.update_sand(x, y, idx),
-                    Water => self.water_update(x, y, idx),
+                    Water => self.water_update(&self.cursor(x, y)),
                     Wood =>self.update_wood(x, y, idx),
-                    Special => self.update_special(x, y, idx),
+                    Special => self.special_update(&self.cursor(x, y)),
                     _ => {},
                 }
             }
@@ -136,7 +144,7 @@ impl Cells {
         str
     }
 
-    fn cursor(&self, x: X, y: Y) -> CellCursor { CellCursor::new(x, y, self.w()) }
+    fn cursor(&self, x: X, y: Y) -> CellCursor { CellCursor::new(x, y, self.w(), self.h()) }
     fn w(&self) -> X {
         self.width as X
     }
@@ -325,19 +333,14 @@ impl Cells {
         }
     }
 
-    fn update_special(&mut self, x: X, y: Y, _idx: usize) {
-        let t = (self.tick_n as f32) / 30.0;
-        let sx = t.cos() * 2.0;
-        let sy = t.sin() * 2.0;
-        if let Some(idx) = self.checked_idx(x + sx as i32, y + sy as i32) {
-            if self.cells[idx].id == Empty {
-                let mut cell = Cell::sand();
-                cell.vx = (sx * 4.0) as i8;
-                cell.vy = (sy * if sy < 0.0 { 12.0 } else { 4.0 }) as i8;
-                cell.flags.insert(CellFlags::UPDATED);
-                self.cells[idx] = cell;
-            }
-        }
+    fn special_update(&mut self, cursor: &CellCursor) {
+        // let left = cursor.add(-1, 0);
+        // let mut cell = self.cell_checked(&left);
+        // cell.vx = cell.vx.saturating_sub(1);
+        // self.cells[left.idx] = cell;
+
+        self.cells[cursor.idx].vx -= 20;
+        self.cells[cursor.idx].id = Water;
     }
 
     fn update_wood(&mut self, _x: X, _y: Y, _idx: usize) {
@@ -346,14 +349,199 @@ impl Cells {
     //
     //
 
-    fn water_update(&mut self, x: X, y: Y, idx: usize) {
-        let mut cursor0 = self.cursor(x, y);
-        let mut cell = self.cells[cursor0.idx];
+    fn water_update(&mut self, cursor: &CellCursor) {
+        let mut cell = self.cells[cursor.idx];
         assert!(cell.id == Water);
 
-        
+        if cursor.x == 11 && cursor.y == self.h() - 2 {
+            println!("{:?}", cell.id);
+        }
 
+        /*
+        let lcell = self.cell_checked(&cursor.add(-1,  0));
+        let rcell = self.cell_checked(&cursor.add( 1,  0));
+        let ucell = self.cell_checked(&cursor.add( 0, -1));
+        let dcell = self.cell_checked(&cursor.add( 0,  1));
+    
+        let dl = dx_diff(lcell, cell);
+        let dr = dx_diff(rcell, cell);
+        let du = dy_diff(ucell, cell);
+        let dd = dy_diff(dcell, cell);
+        let ddpressure = dl.abs() + dr.abs() + du.abs() + dd.abs();
+        
+        let part = ddpressure / 4;
+        let mut rest = ddpressure % 4;
+        
+        if dcell.id == Empty { cell.vy += part + (rest > 0) as i8; rest -= 1; }
+        if lcell.id == Empty { cell.vx -= part + (rest > 0) as i8; rest -= 1; }
+        if rcell.id == Empty { cell.vx += part + (rest > 0) as i8; rest -= 1; }
+        if ucell.id == Empty { cell.vy -= part + (rest > 0) as i8; }
+
+        if dcell.is_something() { self.cells[cursor.add( 0,  1).idx].vy += part; }
+        if lcell.is_something() { self.cells[cursor.add(-1,  0).idx].vx -= part; }
+        if rcell.is_something() { self.cells[cursor.add( 1,  0).idx].vx += part; }
+        if ucell.is_something() { self.cells[cursor.add( 0, -1).idx].vy -= part; }
+        */
+
+        // cell.vx = if ddx < 0 { cell.vx.min(ddx) } else if ddx > 0 { cell.vx.max(ddx) } else { cell.vx };
+        // cell.vy = if ddy < 0 { cell.vx.min(ddy) } else if ddy > 0 { cell.vx.max(ddy) } else { cell.vy };
+
+        if self.cell_is(&cursor.add(0, 1), Empty) {
+            cell.vy = cell.vy.saturating_add(1);
+        }
+
+        let lcell = self.cell_checked(&cursor.add(-1,  0));
+        let rcell = self.cell_checked(&cursor.add( 1,  0));
+        let ucell = self.cell_checked(&cursor.add( 0, -1));
+        let dcell = self.cell_checked(&cursor.add( 0,  1));
+        let neighbors = [lcell, rcell, ucell, dcell];
+
+        if lcell.id != Empty { cell.vx = cell.vx.saturating_add(lcell.vx.saturating_sub(cell.vx).signum()); }
+        if rcell.id != Empty { cell.vx = cell.vx.saturating_add(rcell.vx.saturating_sub(cell.vx).signum()); }
+        if ucell.id != Empty { cell.vx = cell.vx.saturating_add(ucell.vx.saturating_sub(cell.vx).signum()); }
+        if dcell.id != Empty { cell.vx = cell.vx.saturating_add(dcell.vx.saturating_sub(cell.vx).signum()); }
+        if lcell.id != Empty { cell.vy = cell.vy.saturating_add(lcell.vy.saturating_sub(cell.vy).signum()); }
+        if rcell.id != Empty { cell.vy = cell.vy.saturating_add(rcell.vy.saturating_sub(cell.vy).signum()); }
+        if ucell.id != Empty { cell.vy = cell.vy.saturating_add(ucell.vy.saturating_sub(cell.vy).signum()); }
+        if dcell.id != Empty { cell.vy = cell.vy.saturating_add(dcell.vy.saturating_sub(cell.vy).signum()); }
+
+        let mut dx = cell.dx.saturating_add(cell.vx);
+        let mut dy = cell.dy.saturating_add(cell.vy);
+
+        let mut cursor0 = cursor.clone();
+        let mut next_overwrite: Option<CellCursor> = None;
+        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {            
+            // TODO this can be done in a single line
+            let (h, v, next, cursor1) = if let Some(n) = next_overwrite {
+                next_overwrite = None;
+                let h = n.x - cursor0.x;
+                let v = n.y - cursor0.y;
+                (h as i8, v as i8, self.cell_checked(&n), n)
+            } else {
+                let (h, v) = next_pixel(dx as i32 / 10, dy as i32 / 10);
+                let cursor1 = cursor0.add(h, v);
+                let next = self.cell_checked(&cursor1);
+                (h as i8, v as i8, next, cursor1)
+            };
+
+            if next.id == Empty {
+                dx -= 10 * h.abs() * dx.signum();
+                dy -= 10 * v.abs() * dy.signum();
+                self.cells[cursor0.idx] = self.cells[cursor1.idx];
+                cursor0 = cursor1;
+            } else if next.id == Water {
+                let vx_sum = next.vx.saturating_add(cell.vx);
+                let vy_sum = next.vy.saturating_add(cell.vy);
+                self.cells[cursor1.idx].vx = vx_sum / 2 + vx_sum % 2;
+                self.cells[cursor1.idx].vy = vy_sum / 2 + vy_sum % 2;
+                
+                if cell.vx == vx_sum / 2 && cell.vy == vy_sum / 2 {
+                    cell.vx -= cell.vx.signum();
+                    cell.vy -= cell.vy.signum();
+
+                    if h != 0 {
+                        let r: f32 = random();
+                        let vx = cell.vx / 2;
+                        if r < 0.333 { cell.vx = -vx; }
+                        else if r < 0.666 { cell.vy = cell.vy.saturating_add(vx); }
+                        else { cell.vy = cell.vy.saturating_sub(vx); }
+                    }
+                    if v != 0 {
+                        let r: f32 = random();
+                        let vy = cell.vy / 2;
+                        if r < 0.333 { cell.vy = -vy; }
+                        else if r < 0.666 { cell.vx = cell.vx.saturating_add(vy); }
+                        else { cell.vx = cell.vx.saturating_sub(vy); }
+                    }
+
+                    let l = cursor0.add(-1,  0);
+                    let r = cursor0.add( 1,  0);
+                    let u = cursor0.add( 0, -1);
+                    let d = cursor0.add( 0,  1);
+
+                    if let Some(empty_cursor) = [d, l, r, u].iter().filter(|c| self.cell_is(c, Empty)).choose(&mut rand::thread_rng()) {
+                        next_overwrite = Some(empty_cursor.clone());
+                        continue;
+                    } else {
+                        if dx.abs() >= 10 { dx = dx.signum() * 9; }
+                        if dy.abs() >= 10 { dy = dy.signum() * 9; }
+                    }
+                } else {
+                    cell.vx = vx_sum / 2;
+                    cell.vy = vy_sum / 2;
+                    
+                    if dx.abs() >= 10 { dx = dx.signum() * 9; }
+                    if dy.abs() >= 10 { dy = dy.signum() * 9; }
+                }
+            } else if next.id == Wood {
+                // I think now v transfer would happen to next, but wood is static so no v transfer
+                cell.vx -= cell.vx.signum();
+                cell.vy -= cell.vy.signum();
+
+                if h != 0 {
+                    let r: f32 = random();
+                    let vx = cell.vx - cell.vx.signum();
+                    if r < 0.333 { cell.vx = -vx; }
+                    else if r < 0.666 { cell.vy = cell.vy.saturating_add(vx); }
+                    else { cell.vy = cell.vy.saturating_sub(vx); }
+                }
+                if v != 0 {
+                    let r: f32 = random();
+                    let vy = cell.vy - cell.vy.signum();
+                    if r < 0.333 { cell.vy = -vy; }
+                    else if r < 0.666 { cell.vx = cell.vx.saturating_add(vy); }
+                    else { cell.vx = cell.vx.saturating_sub(vy); }
+                }
+
+                let l = cursor0.add(-1,  0);
+                let r = cursor0.add( 1,  0);
+                let u = cursor0.add( 0, -1);
+                let d = cursor0.add( 0,  1);
+                let some_empty = [d, l, r, u].iter().filter(|c| self.cell_is(c, Empty)).cloned().choose(&mut rand::thread_rng());
+
+                if some_empty.is_some() && cell.vx.abs() + cell.vy.abs() > 2 {
+                    next_overwrite = some_empty;
+                    continue;
+                } else {
+                    if dx.abs() >= 10 { dx = dx.signum() * 9; }
+                    if dy.abs() >= 10 { dy = dy.signum() * 9; }
+                }
+            } else {
+                if dx.abs() >= 10 { dx = dx.signum() * 9; }
+                if dy.abs() >= 10 { dy = dy.signum() * 9; }
+                cell.vx -= cell.vx.signum();
+                cell.vy -= cell.vy.signum();
+            } 
+        }
+
+        cell.dx = dx;
+        cell.dy = dy;
         self.cells[cursor0.idx] = cell;
+    }
+
+    fn force_update(&mut self, cursor: &CellCursor) {
+        let mut cell = self.cell_from_cursor(cursor);
+        let gravity = 1;
+        cell.fx = cell.vx;
+        cell.fy = cell.vy + gravity;
+        //self.cells[cursor.idx] = cell;
+    }
+
+    fn cell_from_cursor(&self, cursor: &CellCursor) -> Cell {
+        if cursor.in_bounds() {
+            let cell = self.cells[cursor.idx];
+            if !cell.flags.contains(CellFlags::UPDATED) {
+                return cell;
+            } 
+        }
+        Cell::unavailable()
+    }
+
+    fn cell_checked(&self, cursor: &CellCursor) -> Cell {
+        if cursor.in_bounds() {
+            return self.cells[cursor.idx];
+        }
+        Cell::unavailable()
     }
 
     fn cell_is(&self, cursor: &CellCursor, id: CellId) -> bool {
@@ -375,6 +563,7 @@ impl Cells {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Cell {
+    id: CellId,
     vx: i8,
     vy: i8,
     dx: i8,
@@ -383,7 +572,6 @@ struct Cell {
     fy: i8,
     random: f32,
     flags: CellFlags,
-    id: CellId,
 
     rho: f32,
 }
@@ -421,6 +609,8 @@ impl Cell {
     fn vy(&self) -> i32 { self.vy as i32 }
     fn set_dx(&mut self, v: i32) { self.dx = v as i8; }
     fn set_dy(&mut self, v: i32) { self.dy = v as i8; }
+
+    fn is_something(&self) -> bool { self.id != Unavailable && self.id != Empty }
 }
 
 impl From<CellId> for Cell {
@@ -436,7 +626,7 @@ impl From<CellId> for Cell {
     }
 }
 
-#[repr(u8)]
+//#[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CellId {
     Empty = 0,
@@ -480,6 +670,7 @@ impl MyGame {
     fn switch_cells(&mut self, ctx: &mut Context) {
         self.debug_cells = !self.debug_cells;
         self.cells = Self::create_cells(self.debug_cells, self.scale as usize, ctx);
+        debug_water(&mut self.cells);
     }
 
     fn create_cells(debug_cells: bool, scale: usize, ctx: &mut Context) -> Cells {
@@ -629,13 +820,13 @@ fn cell_color_real(cell: Cell) -> (f32, f32, f32) {
         Sand => rgb(hsl(40.0, 1.0, 0.3 + 0.2 * cell.random)),
         Wood => rgb(hsl(20.0, 0.6, 0.2 + 0.2 * cell.random)),
         Water => rgb(hsl(220.0, 1.0, 0.3 + 0.2 * cell.random)),
-        _ => (0.0, 0.0, 0.0),
+        _ => (0.9, 0.9, 0.9),
     }
 }
 
 fn cell_text_debug(cell: &Cell) -> String {
     let j = if cell.flags.contains(CellFlags::TRIED) { 'x' } else { ' ' };
-    format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.fx, j, cell.fy)
+    format!("{}{}{}\n{}{}{}", cell.vx, j, cell.vy, cell.dx, j, cell.dy)
 }
 
 fn hsl(h: f32, s: f32, l: f32) -> Hsl<> {
@@ -743,16 +934,21 @@ struct CellCursor {
     x: X,
     y: Y,
     w: X,
+    h: Y,
     idx: usize,
 }
 
 impl CellCursor {
-    fn new(x: X, y: Y, w: X) -> Self {
-        Self { x, y, w, idx: (y * w + x) as usize }
+    fn new(x: X, y: Y, w: X, h: Y) -> Self {
+        Self { x, y, w, h, idx: (y * w + x) as usize }
     }
 
     fn add(&self, dx: X, dy: Y) -> Self {
-        Self::new(self.x + dx, self.y + dy, self.w)
+        Self::new(self.x + dx, self.y + dy, self.w, self.h)
+    }
+
+    fn in_bounds(&self) -> bool {
+        self.x >= 0 && self.x < self.w && self.y >= 0 && self.y < self.h
     }
 }
 
@@ -776,6 +972,9 @@ fn debug_water(cells: &mut Cells) {
     */
 
     let w2 = cells.w() / 2;
+    let h = cells.h() - 1;
+
+    /*
     cells.paint(w2-1, 10, Water);
     cells.paint(w2-1, 9, Water);
     cells.paint(w2-1, 8, Water);
@@ -788,4 +987,27 @@ fn debug_water(cells: &mut Cells) {
     cells.paint(w2+1, 10, Water);
     cells.paint(w2+1, 9, Water);
     cells.paint(w2+1, 8, Water);
+    */
+
+    cells.paint(w2  , h, Water);
+    cells.paint(w2-1, h, Water);
+    cells.paint(w2+1, h, Water);
+    cells.paint(w2-2, h, Wood);
+    // cells.paint(w2-2, h-1, Wood);
+    // cells.paint(w2  , h-1, Wood);
+    // cells.paint(w2+1, h-1, Wood);
+    // cells.paint(w2+2, h-1, Wood);
+    cells.paint(w2+5, h, Special);
+}
+
+fn dx_diff(a: Cell, b: Cell) -> i8 {
+    if a.id == Unavailable || a.id == Empty { 0 } else { a.dx - b.dx }
+}
+
+fn dy_diff(a: Cell, b: Cell) -> i8 {
+    if a.id == Unavailable || a.id == Empty {
+        0
+    } else {
+        a.dy - b.dy
+    }
 }
