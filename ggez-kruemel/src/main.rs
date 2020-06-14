@@ -7,6 +7,9 @@ use ggez::{Context, ContextBuilder, GameResult};
 use rand::prelude::*;
 use palette::*;
 
+use nalgebra as na;
+use nalgebra::{Vector2};
+
 // use std::default;
 
 #[macro_use]
@@ -44,7 +47,7 @@ fn experiment_tick_cells() {
     print_frames(7, &mut cells);
     print_frames(2, &mut cells);
     print_frames(2, &mut cells);
-    //print_frames(8, &mut cells);
+    //print_frames(8, &mut cells); 
     //print_frames(8, &mut cells);
     //print_frames(8, &mut cells);
 }
@@ -275,6 +278,20 @@ impl Cells {
     }
 
     fn update_sand_deflection(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
+        self.update_sand_deflection1(cursor0, cursor1, dx, dy, h, v);
+    }
+
+    fn update_sand_deflection1(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
+        let mut cell = self.cell_from_cursor(&cursor0);
+        let next = deflect(cursor1, &v8(h, v), self, &mut cell);
+        let next = cursor0.add(next.x, next.y);
+        self.cells[cursor0.idx] = self.cells[next.idx];
+        *cursor0 = next;
+        *dx = cell.dx;
+        *dy = cell.dy;
+    }
+     
+    fn update_sand_deflection2(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
         // TODO add impact energy transfer
         // TODO could increase v too
         // TODO unify code paths if possible
@@ -291,8 +308,8 @@ impl Cells {
             *dx = dir * (dy.abs() - low_mid);
             *dy = dy.signum() * low_mid;
         } else if v != 0 && h != 0 {
-            let h_empty = self.cell(cursor1.x + h as i32, cursor1.y).id == Empty;
-            let v_empty = self.cell(cursor1.x, cursor1.y + v as i32).id == Empty;
+            let h_empty = self.cell(cursor1.x - h as i32, cursor1.y).id == Empty;
+            let v_empty = self.cell(cursor1.x, cursor1.y - v as i32).id == Empty;
 
             if (h_empty && !v_empty) || (h_empty && v_empty && random()) {
                 path = 2;
@@ -682,7 +699,7 @@ impl MyGame {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
         }
 
-        if true {
+        if false {
             for y in 0..=self.cells.h() {
                 for x in 0..=self.cells.w() {
                     self.cell_debug(ctx, x as f32, y as f32, &self.cells.cell(x, y));
@@ -903,5 +920,65 @@ fn dy_diff(a: Cell, b: Cell) -> i8 {
         0
     } else {
         a.dy - b.dy
+    }
+}
+
+type V = Vector2<i32>;
+
+fn v<N: Into<i32>>(x: N, y: N) -> Vector2<i32> { V::new(x.into(), y.into()) }
+fn v32(x: i32, y: i32) -> V { V::new(x.into(), y.into()) }
+fn v8(x: i8, y: i8) -> Vector2<i32> { V::new(x.into(), y.into()) }
+
+fn orthogonal_offsets(dir: &V) -> Option<[V; 2]> {
+    match (dir.x == 0, dir.y == 0) {
+        (true, false) => Some([v(1, 0), v(-1, 0)]),
+        (false, true) => Some([v(0, 1), v(0, -1)]),
+        (true, true) => Some([v(-dir.x, 0), v(0, -dir.y)]),
+        (false, false) => None,
+    }
+}
+
+fn deflect(cursor: &CellCursor, dir: &V, cells: &Cells, cell: &mut Cell) -> V {
+    if let Some(offsets) = orthogonal_offsets(dir) { 
+        let choice = offsets.iter()
+            .map(|o| (o, cursor.add(o.x, o.y)))
+            .map(|c| (c.0, c.1, cells.cell_checked(&c.1)))
+            .filter(|c| c.2.id == Empty)
+            .choose(&mut rand::thread_rng());
+        if let Some(choice) = choice {
+            let new_dir = dir + choice.0;
+            cell.consume_energy(dir);
+            cell.change_dir(&new_dir);
+            new_dir
+        } else {
+            cell.stop();
+            v(0, 0)
+        }
+    } else {
+        v(0, 0)
+    }
+}
+
+impl Cell {
+    fn consume_energy(&mut self, dir: &V) {
+        self.dx -= dir.x as i8 * 10;
+        self.dy -= dir.y as i8 * 10;
+    }
+
+    fn change_dir(&mut self, dir: &V) {
+        let d = v(self.dx, self.dy);
+        let dx = self.dx as i32;
+        let dy = self.dy as i32;
+        let dsum = dx.abs() + dy.abs();
+        let dirsum = dir.x.signum().abs() + dir.y.signum().abs();
+        self.dx = (dsum / dirsum) as i8;
+        self.dy = (dsum - self.dx as i32) as i8;
+    }
+
+    fn stop(&mut self) {
+        self.dx = 0;
+        self.dy = 0;
+        self.vx = 0;
+        self.vy = 0;
     }
 }

@@ -528,6 +528,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "generic-array"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ed1e761351b56f54eb9dcd0cfaca9fd0daecf93918e1cfc01c8a3d26ee7adcd"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -611,7 +620,7 @@ dependencies = [
  "log",
  "lyon",
  "mint",
- "nalgebra",
+ "nalgebra 0.18.1",
  "rodio",
  "serde",
  "serde_derive",
@@ -629,6 +638,7 @@ dependencies = [
  "bitflags",
  "gfx",
  "ggez",
+ "nalgebra 0.21.1",
  "palette",
  "rand 0.7.3",
 ]
@@ -1114,13 +1124,31 @@ checksum = "aaa9fddbc34c8c35dd2108515587b8ce0cab396f17977b8c738568e4edb521a2"
 dependencies = [
  "alga",
  "approx",
- "generic-array",
+ "generic-array 0.12.3",
  "matrixmultiply",
  "mint",
  "num-complex",
  "num-rational",
  "num-traits 0.2.11",
  "rand 0.6.5",
+ "typenum",
+]
+
+[[package]]
+name = "nalgebra"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6b6147c3d50b4f3cdabfe2ecc94a0191fd3d6ad58aefd9664cf396285883486"
+dependencies = [
+ "approx",
+ "generic-array 0.13.2",
+ "matrixmultiply",
+ "num-complex",
+ "num-rational",
+ "num-traits 0.2.11",
+ "rand 0.7.3",
+ "rand_distr",
+ "simba",
  "typenum",
 ]
 
@@ -1335,6 +1363,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d508492eeb1e5c38ee696371bf7b9fc33c83d46a7d451606b96458fbbbdc2dec"
+dependencies = [
+ "paste-impl",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "paste-impl"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84f328a6a63192b333fce5fbb4be79db6758a4d518dfac6d54412f1492f72d32"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
 name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1413,6 +1463,12 @@ name = "ppv-lite86"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74490b50b9fbe561ac330df47c08f3f33073d2d00c150f719147d7c54522fa1b"
+
+[[package]]
+name = "proc-macro-hack"
+version = "0.5.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e0456befd48169b9f13ef0f0ad46d492cf9d2dbb918bcf38e01eed4ce3ec5e4"
 
 [[package]]
 name = "proc-macro2"
@@ -1547,6 +1603,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
 dependencies = [
  "getrandom",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96977acbdd3a6576fb1d27391900035bf3863d4a16422973a409b488cf29ffb2"
+dependencies = [
+ "rand 0.7.3",
 ]
 
 [[package]]
@@ -1705,7 +1770,7 @@ dependencies = [
  "hound",
  "lazy_static",
  "lewton",
- "nalgebra",
+ "nalgebra 0.18.1",
 ]
 
 [[package]]
@@ -1871,6 +1936,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29e0a6006cf04d568a49363baca3dabddbbe46538f7c76692d405f5f5d140ecd"
 dependencies = [
  "num-traits 0.1.43",
+]
+
+[[package]]
+name = "simba"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb931b1367faadea6b1ab1c306a860ec17aaa5fa39f367d0c744e69d971a1fb2"
+dependencies = [
+ "approx",
+ "num-complex",
+ "num-traits 0.2.11",
+ "paste",
 ]
 
 [[package]]
