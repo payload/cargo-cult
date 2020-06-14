@@ -810,42 +810,14 @@ fn choose_direction_factor(x: i32, l: bool, r: bool) -> i32 {
 }
 
 fn debug_water(cells: &mut Cells) {
-    /*
-    let rand = |p| random::<f64>() < p;
-    for_circle(self.paint_size, &mut |dx, dy| {
-        if rand(0.8) {
-            self.cells.paint(self.cells.w()/2 -1 + dx, 5 + dy, Water);
-        }
-    });
-    */
-
     let w2 = cells.w() / 2;
     let h = cells.h() - 1;
 
-    /*
-    cells.paint(w2-1, 10, Water);
-    cells.paint(w2-1, 9, Water);
-    cells.paint(w2-1, 8, Water);
-    cells.paint(w2, 10, Water);
-    cells.paint(w2, 9, Water);
-    cells.paint(w2, 8, Water);
-    cells.paint(w2, 7, Water);
-    cells.paint(w2, 6, Water);
-    cells.paint(w2, 5, Water);
-    cells.paint(w2+1, 10, Water);
-    cells.paint(w2+1, 9, Water);
-    cells.paint(w2+1, 8, Water);
-    */
-
-    cells.paint(w2  , h, Water);
-    cells.paint(w2-1, h, Water);
-    cells.paint(w2+1, h, Water);
-    cells.paint(w2-2, h, Wood);
-    // cells.paint(w2-2, h-1, Wood);
-    // cells.paint(w2  , h-1, Wood);
-    // cells.paint(w2+1, h-1, Wood);
-    // cells.paint(w2+2, h-1, Wood);
-    cells.paint(w2+5, h, Special);
+    for x in w2-2..=w2+2 {
+        for y in h-5..=h {
+            cells.paint(x, y, Water);        
+        }
+    }
 }
 
 fn dx_diff(a: Cell, b: Cell) -> i8 {
