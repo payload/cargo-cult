@@ -84,7 +84,7 @@ impl Cells {
     fn sim_update(&mut self) {
         self.loop_count = 0;
         self.tick();
-        //println!("loop_count {}", self.loop_count);
+        // println!("loop_count {} {}", self.loop_count, self.tick_n);
     }
 
     fn tick(&mut self) {
@@ -307,8 +307,14 @@ impl Cells {
         let mut cell = self.cells[cursor.idx];
         assert!(cell.id == Water);
 
-        if cell.vy < 1 || self.cell_is(&cursor.add(0, 1), Empty) {
-            cell.vy += 1;
+        if cell.vy < 1
+            || self.cell_is(&cursor.add(0, 1), Empty)
+            || self.cell_is(&cursor.add(-1, 1), Empty)
+            || self.cell_is(&cursor.add(1, 1), Empty)
+            || self.cell_is(&cursor.add(-1, 0), Empty)
+            || self.cell_is(&cursor.add(1, 0), Empty)
+            {
+            cell.vy = cell.vy.saturating_add(1);
         }
 
         let mut dx = cell.dx.saturating_add(cell.vx);
@@ -316,7 +322,14 @@ impl Cells {
 
         let mut cursor0 = cursor.clone();
         let mut next_overwrite: Option<CellCursor> = None;
-        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {            
+        
+        let mut loop_counter = 0;
+        while dx >= 10 || dy >= 10 || dx <= -10 || dy <= -10 {
+            loop_counter += 1;
+            if loop_counter > 100 {
+                dbg!("potential endless loop detected");
+            }
+
             // TODO this can be done in a single line
             let (h, v, next, cursor1) = if let Some(n) = next_overwrite {
                 next_overwrite = None;
@@ -339,9 +352,23 @@ impl Cells {
                 cell.dx = dx;
                 cell.dy = dy;
 
-                let choice = deflect2(&cursor1, &v8(h, v), self);
-                if let Some(new_dir) = choice {
+                if let Some(new_dir) = deflect2(&cursor1, &v8(h, v), self) {
                     cell.consume_energy(&new_dir);
+
+                    cell.vx -= cell.vx.signum();
+                    cell.vy -= cell.vy.signum();
+
+                    cell.change_dir(&new_dir);
+                    let next = cursor0.add(new_dir.x, new_dir.y);
+                    self.cells[cursor0.idx] = self.cells[next.idx];
+                    cursor0 = next;
+                } else if let Some(new_dir) = deflect2(&cursor0, &v8(h, v), self) {
+                    cell.consume_energy(&new_dir);
+                    
+                    cell.vx -= cell.vx.signum();
+                    cell.vy -= cell.vy.signum();
+                    
+                    let new_dir = v32(new_dir.x - h as i32, new_dir.y - v as i32);
                     cell.change_dir(&new_dir);
                     let next = cursor0.add(new_dir.x, new_dir.y);
                     self.cells[cursor0.idx] = self.cells[next.idx];
@@ -355,10 +382,11 @@ impl Cells {
             }
         }
 
-        if self.cell_is(&cursor.add(0, 1), Empty) {
-            cell.vy = cell.vy.saturating_add(1);
-        }
+        // if cell.vy < 1 || self.cell_is(&cursor.add(0, 1), Empty) {
+        //     cell.vy = cell.vy.saturating_add(1);
+        // }
 
+        /*
         let lcell = self.cell_checked(&cursor.add(-1,  0));
         let rcell = self.cell_checked(&cursor.add( 1,  0));
         let ucell = self.cell_checked(&cursor.add( 0, -1));
@@ -376,6 +404,7 @@ impl Cells {
         if rcell.id != Empty { cell.vy = cell.vy.saturating_add(rcell.vy.saturating_sub(cell.vy).signum()); }
         if ucell.id != Empty { cell.vy = cell.vy.saturating_add(ucell.vy.saturating_sub(cell.vy).signum()); }
         if dcell.id != Empty { cell.vy = cell.vy.saturating_add(dcell.vy.saturating_sub(cell.vy).signum()); }
+        */
 
         cell.dx = dx;
         cell.dy = dy;
@@ -515,7 +544,7 @@ struct MyGame {
 impl MyGame {
     fn new(ctx: &mut Context) -> MyGame {
         let debug_cells = false;
-        let scale = 32;
+        let scale = 4;
         let mut game = MyGame {
             debug_cells,
             cells: Self::create_cells(debug_cells, scale as usize, ctx),
@@ -901,17 +930,24 @@ fn deflect2(cursor: &CellCursor, dir: &V, cells: &Cells) -> Option<V> {
 
 impl Cell {
     fn consume_energy(&mut self, dir: &V) {
-        self.dx -= dir.x as i8 * 10;
-        self.dy -= dir.y as i8 * 10;
+        self.dx -= self.dx.signum() * dir.x.abs() as i8 * 10;
+        self.dy -= self.dy.signum() * dir.y.abs() as i8 * 10;
     }
 
     fn change_dir(&mut self, dir: &V) {
+        let dirsum = dir.x.signum().abs() + dir.y.signum().abs();
+
         let dx = self.dx as i32;
         let dy = self.dy as i32;
         let dsum = dx.abs() + dy.abs();
-        let dirsum = dir.x.signum().abs() + dir.y.signum().abs();
-        self.dx = (dsum / dirsum) as i8;
-        self.dy = (dsum - self.dx as i32) as i8;
+        self.dx = (dir.x * dsum / dirsum) as i8;
+        self.dy = (dir.y * (dsum - self.dx as i32))  as i8;
+        
+        // let vx = self.vx as i32;
+        // let vy = self.vy as i32;
+        // let vsum = vx.abs() + vy.abs();
+        // self.vx = self.vx.abs() * dir.x.signum();
+        // self.vy = self.vy.abs() * dir.y.signum();
     }
 
     fn stop(&mut self) {
@@ -920,4 +956,17 @@ impl Cell {
         self.vx = 0;
         self.vy = 0;
     }
+}
+
+fn cursors_to_neighbors(cursor: &CellCursor) -> [CellCursor; 8] {
+    [
+        cursor.add(-1, -1),
+        cursor.add(0, -1),
+        cursor.add(1, -1),
+        cursor.add(-1, 0),
+        cursor.add(1, 0),
+        cursor.add(-1, 1),
+        cursor.add(0, 1),
+        cursor.add(1, 1),
+    ]
 }
