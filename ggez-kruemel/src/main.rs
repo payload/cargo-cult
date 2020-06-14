@@ -338,10 +338,18 @@ impl Cells {
             } else {
                 cell.dx = dx;
                 cell.dy = dy;
-                let off = deflect(&cursor1, &v8(h, v), self, &mut cell);
-                let next = cursor0.add(off.x, off.y);
-                self.cells[cursor0.idx] = self.cells[next.idx];
-                cursor0 = next;
+
+                let choice = deflect2(&cursor1, &v8(h, v), self);
+                if let Some(new_dir) = choice {
+                    cell.consume_energy(&new_dir);
+                    cell.change_dir(&new_dir);
+                    let next = cursor0.add(new_dir.x, new_dir.y);
+                    self.cells[cursor0.idx] = self.cells[next.idx];
+                    cursor0 = next;
+                } else {
+                    cell.stop();
+                }
+
                 dx = cell.dx;
                 dy = cell.dy;
             }
@@ -877,6 +885,18 @@ fn deflect(cursor: &CellCursor, dir: &V, cells: &Cells, cell: &mut Cell) -> V {
         cell.stop();
         v(0, 0)
     }
+}
+
+fn deflect2(cursor: &CellCursor, dir: &V, cells: &Cells) -> Option<V> { 
+    orthogonal_offsets(dir)
+        .iter()
+        .cloned()
+        .filter_map(|o| o)
+        .map(|o| (o, cursor.add(o.x, o.y)))
+        .map(|c| (c.0, c.1, cells.cell_checked(&c.1)))
+        .filter(|c| c.2.id == Empty)
+        .choose(&mut rand::thread_rng())
+        .map(|choice| dir + choice.0)
 }
 
 impl Cell {
