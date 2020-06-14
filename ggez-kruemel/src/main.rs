@@ -307,6 +307,10 @@ impl Cells {
         let mut cell = self.cells[cursor.idx];
         assert!(cell.id == Water);
 
+        if cell.vy < 1 || self.cell_is(&cursor.add(0, 1), Empty) {
+            cell.vy += 1;
+        }
+
         let mut dx = cell.dx.saturating_add(cell.vx);
         let mut dy = cell.dy.saturating_add(cell.vy);
 
@@ -331,12 +335,15 @@ impl Cells {
                 dy -= 10 * v.abs() * dy.signum();
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
-            } else if next.id == Water {
-                dx = 0;
-                dy = 0;
             } else {
-                dx = 0;
-                dy = 0;
+                cell.dx = dx;
+                cell.dy = dy;
+                let off = deflect(&cursor1, &v8(h, v), self, &mut cell);
+                let next = cursor0.add(off.x, off.y);
+                self.cells[cursor0.idx] = self.cells[next.idx];
+                cursor0 = next;
+                dx = cell.dx;
+                dy = cell.dy;
             }
         }
 
@@ -815,7 +822,11 @@ fn debug_water(cells: &mut Cells) {
 
     for x in w2-2..=w2+2 {
         for y in h-5..=h {
-            cells.paint(x, y, Water);        
+            if y != h {
+                cells.paint(x, y, Water);
+            } else {
+                cells.paint(x, y, Wood);
+            }
         }
     }
 }
