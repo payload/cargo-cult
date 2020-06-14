@@ -353,58 +353,6 @@ impl Cells {
         let mut cell = self.cells[cursor.idx];
         assert!(cell.id == Water);
 
-        if cursor.x == 11 && cursor.y == self.h() - 2 {
-            println!("{:?}", cell.id);
-        }
-
-        /*
-        let lcell = self.cell_checked(&cursor.add(-1,  0));
-        let rcell = self.cell_checked(&cursor.add( 1,  0));
-        let ucell = self.cell_checked(&cursor.add( 0, -1));
-        let dcell = self.cell_checked(&cursor.add( 0,  1));
-    
-        let dl = dx_diff(lcell, cell);
-        let dr = dx_diff(rcell, cell);
-        let du = dy_diff(ucell, cell);
-        let dd = dy_diff(dcell, cell);
-        let ddpressure = dl.abs() + dr.abs() + du.abs() + dd.abs();
-        
-        let part = ddpressure / 4;
-        let mut rest = ddpressure % 4;
-        
-        if dcell.id == Empty { cell.vy += part + (rest > 0) as i8; rest -= 1; }
-        if lcell.id == Empty { cell.vx -= part + (rest > 0) as i8; rest -= 1; }
-        if rcell.id == Empty { cell.vx += part + (rest > 0) as i8; rest -= 1; }
-        if ucell.id == Empty { cell.vy -= part + (rest > 0) as i8; }
-
-        if dcell.is_something() { self.cells[cursor.add( 0,  1).idx].vy += part; }
-        if lcell.is_something() { self.cells[cursor.add(-1,  0).idx].vx -= part; }
-        if rcell.is_something() { self.cells[cursor.add( 1,  0).idx].vx += part; }
-        if ucell.is_something() { self.cells[cursor.add( 0, -1).idx].vy -= part; }
-        */
-
-        // cell.vx = if ddx < 0 { cell.vx.min(ddx) } else if ddx > 0 { cell.vx.max(ddx) } else { cell.vx };
-        // cell.vy = if ddy < 0 { cell.vx.min(ddy) } else if ddy > 0 { cell.vx.max(ddy) } else { cell.vy };
-
-        if self.cell_is(&cursor.add(0, 1), Empty) {
-            cell.vy = cell.vy.saturating_add(1);
-        }
-
-        let lcell = self.cell_checked(&cursor.add(-1,  0));
-        let rcell = self.cell_checked(&cursor.add( 1,  0));
-        let ucell = self.cell_checked(&cursor.add( 0, -1));
-        let dcell = self.cell_checked(&cursor.add( 0,  1));
-        let neighbors = [lcell, rcell, ucell, dcell];
-
-        if lcell.id != Empty { cell.vx = cell.vx.saturating_add(lcell.vx.saturating_sub(cell.vx).signum()); }
-        if rcell.id != Empty { cell.vx = cell.vx.saturating_add(rcell.vx.saturating_sub(cell.vx).signum()); }
-        if ucell.id != Empty { cell.vx = cell.vx.saturating_add(ucell.vx.saturating_sub(cell.vx).signum()); }
-        if dcell.id != Empty { cell.vx = cell.vx.saturating_add(dcell.vx.saturating_sub(cell.vx).signum()); }
-        if lcell.id != Empty { cell.vy = cell.vy.saturating_add(lcell.vy.saturating_sub(cell.vy).signum()); }
-        if rcell.id != Empty { cell.vy = cell.vy.saturating_add(rcell.vy.saturating_sub(cell.vy).signum()); }
-        if ucell.id != Empty { cell.vy = cell.vy.saturating_add(ucell.vy.saturating_sub(cell.vy).signum()); }
-        if dcell.id != Empty { cell.vy = cell.vy.saturating_add(dcell.vy.saturating_sub(cell.vy).signum()); }
-
         let mut dx = cell.dx.saturating_add(cell.vx);
         let mut dy = cell.dy.saturating_add(cell.vy);
 
@@ -430,89 +378,35 @@ impl Cells {
                 self.cells[cursor0.idx] = self.cells[cursor1.idx];
                 cursor0 = cursor1;
             } else if next.id == Water {
-                let vx_sum = next.vx.saturating_add(cell.vx);
-                let vy_sum = next.vy.saturating_add(cell.vy);
-                self.cells[cursor1.idx].vx = vx_sum / 2 + vx_sum % 2;
-                self.cells[cursor1.idx].vy = vy_sum / 2 + vy_sum % 2;
-                
-                if cell.vx == vx_sum / 2 && cell.vy == vy_sum / 2 {
-                    cell.vx -= cell.vx.signum();
-                    cell.vy -= cell.vy.signum();
-
-                    if h != 0 {
-                        let r: f32 = random();
-                        let vx = cell.vx / 2;
-                        if r < 0.333 { cell.vx = -vx; }
-                        else if r < 0.666 { cell.vy = cell.vy.saturating_add(vx); }
-                        else { cell.vy = cell.vy.saturating_sub(vx); }
-                    }
-                    if v != 0 {
-                        let r: f32 = random();
-                        let vy = cell.vy / 2;
-                        if r < 0.333 { cell.vy = -vy; }
-                        else if r < 0.666 { cell.vx = cell.vx.saturating_add(vy); }
-                        else { cell.vx = cell.vx.saturating_sub(vy); }
-                    }
-
-                    let l = cursor0.add(-1,  0);
-                    let r = cursor0.add( 1,  0);
-                    let u = cursor0.add( 0, -1);
-                    let d = cursor0.add( 0,  1);
-
-                    if let Some(empty_cursor) = [d, l, r, u].iter().filter(|c| self.cell_is(c, Empty)).choose(&mut rand::thread_rng()) {
-                        next_overwrite = Some(empty_cursor.clone());
-                        continue;
-                    } else {
-                        if dx.abs() >= 10 { dx = dx.signum() * 9; }
-                        if dy.abs() >= 10 { dy = dy.signum() * 9; }
-                    }
-                } else {
-                    cell.vx = vx_sum / 2;
-                    cell.vy = vy_sum / 2;
-                    
-                    if dx.abs() >= 10 { dx = dx.signum() * 9; }
-                    if dy.abs() >= 10 { dy = dy.signum() * 9; }
-                }
-            } else if next.id == Wood {
-                // I think now v transfer would happen to next, but wood is static so no v transfer
-                cell.vx -= cell.vx.signum();
-                cell.vy -= cell.vy.signum();
-
-                if h != 0 {
-                    let r: f32 = random();
-                    let vx = cell.vx - cell.vx.signum();
-                    if r < 0.333 { cell.vx = -vx; }
-                    else if r < 0.666 { cell.vy = cell.vy.saturating_add(vx); }
-                    else { cell.vy = cell.vy.saturating_sub(vx); }
-                }
-                if v != 0 {
-                    let r: f32 = random();
-                    let vy = cell.vy - cell.vy.signum();
-                    if r < 0.333 { cell.vy = -vy; }
-                    else if r < 0.666 { cell.vx = cell.vx.saturating_add(vy); }
-                    else { cell.vx = cell.vx.saturating_sub(vy); }
-                }
-
-                let l = cursor0.add(-1,  0);
-                let r = cursor0.add( 1,  0);
-                let u = cursor0.add( 0, -1);
-                let d = cursor0.add( 0,  1);
-                let some_empty = [d, l, r, u].iter().filter(|c| self.cell_is(c, Empty)).cloned().choose(&mut rand::thread_rng());
-
-                if some_empty.is_some() && cell.vx.abs() + cell.vy.abs() > 2 {
-                    next_overwrite = some_empty;
-                    continue;
-                } else {
-                    if dx.abs() >= 10 { dx = dx.signum() * 9; }
-                    if dy.abs() >= 10 { dy = dy.signum() * 9; }
-                }
+                dx = 0;
+                dy = 0;
             } else {
-                if dx.abs() >= 10 { dx = dx.signum() * 9; }
-                if dy.abs() >= 10 { dy = dy.signum() * 9; }
-                cell.vx -= cell.vx.signum();
-                cell.vy -= cell.vy.signum();
-            } 
+                dx = 0;
+                dy = 0;
+            }
         }
+
+        if self.cell_is(&cursor.add(0, 1), Empty) {
+            cell.vy = cell.vy.saturating_add(1);
+        }
+
+        let lcell = self.cell_checked(&cursor.add(-1,  0));
+        let rcell = self.cell_checked(&cursor.add( 1,  0));
+        let ucell = self.cell_checked(&cursor.add( 0, -1));
+        let dcell = self.cell_checked(&cursor.add( 0,  1));
+
+        if rcell.vx < -12 {
+            print!("");
+        }
+
+        if lcell.id != Empty { cell.vx = cell.vx.saturating_add(lcell.vx.saturating_sub(cell.vx).signum()); }
+        if rcell.id != Empty { cell.vx = cell.vx + (rcell.vx - cell.vx).signum(); }
+        if ucell.id != Empty { cell.vx = cell.vx.saturating_add(ucell.vx.saturating_sub(cell.vx).signum()); }
+        if dcell.id != Empty { cell.vx = cell.vx.saturating_add(dcell.vx.saturating_sub(cell.vx).signum()); }
+        if lcell.id != Empty { cell.vy = cell.vy.saturating_add(lcell.vy.saturating_sub(cell.vy).signum()); }
+        if rcell.id != Empty { cell.vy = cell.vy.saturating_add(rcell.vy.saturating_sub(cell.vy).signum()); }
+        if ucell.id != Empty { cell.vy = cell.vy.saturating_add(ucell.vy.saturating_sub(cell.vy).signum()); }
+        if dcell.id != Empty { cell.vy = cell.vy.saturating_add(dcell.vy.saturating_sub(cell.vy).signum()); }
 
         cell.dx = dx;
         cell.dy = dy;
