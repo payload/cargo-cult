@@ -278,10 +278,6 @@ impl Cells {
     }
 
     fn update_sand_deflection(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
-        self.update_sand_deflection1(cursor0, cursor1, dx, dy, h, v);
-    }
-
-    fn update_sand_deflection1(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
         let mut cell = self.cell_from_cursor(&cursor0);
         let next = deflect(cursor1, &v8(h, v), self, &mut cell);
         let next = cursor0.add(next.x, next.y);
@@ -289,65 +285,6 @@ impl Cells {
         *cursor0 = next;
         *dx = cell.dx;
         *dy = cell.dy;
-    }
-     
-    fn update_sand_deflection2(&mut self, cursor0: &mut CellCursor, cursor1: &mut CellCursor, dx: &mut i8, dy: &mut i8, h: i8, v: i8) {
-        // TODO add impact energy transfer
-        // TODO could increase v too
-        // TODO unify code paths if possible
-        // self.cells[cursor.idx].flags.insert(CellFlags::TRIED);
-        let path;
-        let dsum0 = dx.abs() as i32 + dy.abs() as i32;
-
-        if v != 0 && h == 0 {
-            path = 1;
-            let dr_empty = self.cell(cursor1.x + 1, cursor1.y).id == Empty;
-            let dl_empty = self.cell(cursor1.x - 1, cursor1.y).id == Empty;
-            let dir = choose_direction_factor(*dx as i32, dl_empty, dr_empty) as i8;
-            let low_mid = (dy.abs() - dx.abs()) / 2;
-            *dx = dir * (dy.abs() - low_mid);
-            *dy = dy.signum() * low_mid;
-        } else if v != 0 && h != 0 {
-            let h_empty = self.cell(cursor1.x - h as i32, cursor1.y).id == Empty;
-            let v_empty = self.cell(cursor1.x, cursor1.y - v as i32).id == Empty;
-
-            if (h_empty && !v_empty) || (h_empty && v_empty && random()) {
-                path = 2;
-                *dx -= 10 * h;
-                *dy -= 10 * v;
-                *cursor1 = cursor1.add(h as i32, 0);
-                self.cells[cursor0.idx] = self.cells[cursor1.idx];
-            } else if v_empty {
-                path = 3;
-                *dx -= 10 * h;
-                *dy -= 10 * v;
-                *cursor1 = cursor1.add(0, v as i32);
-                self.cells[cursor0.idx] = self.cells[cursor1.idx];
-            } else {
-                path = 4;
-                *dx = 0;
-                *dy = 0;
-            }
-        } else if v == 0 && h != 0 {
-            path = 5;
-            let d_empty = self.cell(cursor1.x, cursor1.y + 1).id == Empty;
-            let u_empty = self.cell(cursor1.x, cursor1.y - 1).id == Empty;
-            let dir = choose_direction_factor(*dy as i32, u_empty, d_empty) as i8;
-            let low_mid = (dx.abs() - dy.abs()) / 2;
-            let xdx = dx.signum() * low_mid;
-            let xdy = dir * (dx.abs() - low_mid);
-            *dx = xdx;
-            *dy = xdy;
-        } else {
-            path = 6;
-            *dx = 0;
-            *dy = 0;
-        }
-
-        let dsum1 = dx.abs() as i32 + dy.abs() as i32;
-        if dsum1 > dsum0 {
-            println!("created energy from nothing: path={} diff={}", path, dsum1 - dsum0);
-        }
     }
 
     fn special_update(&mut self, cursor: &CellCursor) {
@@ -929,32 +866,32 @@ fn v<N: Into<i32>>(x: N, y: N) -> Vector2<i32> { V::new(x.into(), y.into()) }
 fn v32(x: i32, y: i32) -> V { V::new(x.into(), y.into()) }
 fn v8(x: i8, y: i8) -> Vector2<i32> { V::new(x.into(), y.into()) }
 
-fn orthogonal_offsets(dir: &V) -> Option<[V; 2]> {
+fn orthogonal_offsets(dir: &V) -> [Option<V>; 2] {
     match (dir.x == 0, dir.y == 0) {
-        (true, false) => Some([v(1, 0), v(-1, 0)]),
-        (false, true) => Some([v(0, 1), v(0, -1)]),
-        (true, true) => Some([v(-dir.x, 0), v(0, -dir.y)]),
-        (false, false) => None,
+        (true, false) => [Some(v(1, 0)), Some(v(-1, 0))],
+        (false, true) => [Some(v(0, 1)), Some(v(0, -1))],
+        (true, true) => [Some(v(-dir.x, 0)), Some(v(0, -dir.y))],
+        (false, false) => [None, None],
     }
 }
 
-fn deflect(cursor: &CellCursor, dir: &V, cells: &Cells, cell: &mut Cell) -> V {
-    if let Some(offsets) = orthogonal_offsets(dir) { 
-        let choice = offsets.iter()
-            .map(|o| (o, cursor.add(o.x, o.y)))
-            .map(|c| (c.0, c.1, cells.cell_checked(&c.1)))
-            .filter(|c| c.2.id == Empty)
-            .choose(&mut rand::thread_rng());
-        if let Some(choice) = choice {
-            let new_dir = dir + choice.0;
-            cell.consume_energy(dir);
-            cell.change_dir(&new_dir);
-            new_dir
-        } else {
-            cell.stop();
-            v(0, 0)
-        }
+fn deflect(cursor: &CellCursor, dir: &V, cells: &Cells, cell: &mut Cell) -> V { 
+    let choice =
+        orthogonal_offsets(dir)
+        .iter()
+        .cloned()
+        .filter_map(|o| o)
+        .map(|o| (o, cursor.add(o.x, o.y)))
+        .map(|c| (c.0, c.1, cells.cell_checked(&c.1)))
+        .filter(|c| c.2.id == Empty)
+        .choose(&mut rand::thread_rng());
+    if let Some(choice) = choice {
+        let new_dir = dir + choice.0;
+        cell.consume_energy(dir);
+        cell.change_dir(&new_dir);
+        new_dir
     } else {
+        cell.stop();
         v(0, 0)
     }
 }
@@ -966,7 +903,6 @@ impl Cell {
     }
 
     fn change_dir(&mut self, dir: &V) {
-        let d = v(self.dx, self.dy);
         let dx = self.dx as i32;
         let dy = self.dy as i32;
         let dsum = dx.abs() + dy.abs();
