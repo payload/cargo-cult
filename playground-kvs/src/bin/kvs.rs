@@ -1,4 +1,4 @@
-use clap::{App, Arg, SubCommand, AppSettings, app_from_crate, crate_name, crate_version, crate_authors, crate_description};
+use clap::{Arg, SubCommand, AppSettings, app_from_crate, crate_name, crate_version, crate_authors, crate_description};
 
 fn main() {
     let app = app_from_crate!()
@@ -19,13 +19,16 @@ fn main() {
         let value = m.value_of("value").unwrap().into();
 
         store.set(key, value);
+        panic!("{}", "unimplemented");
     } else if let Some(m) = matches.subcommand_matches("get") {
         let key = m.value_of("key").unwrap().into();
 
         store.get(key);
+        panic!("{}", "unimplemented");
     } else if let Some(m) = matches.subcommand_matches("rm") {
         let key = m.value_of("key").unwrap().into();
 
         store.remove(key);
+        panic!("{}", "unimplemented");
     }
 }
