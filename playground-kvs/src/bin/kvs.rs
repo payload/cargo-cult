@@ -1,3 +1,7 @@
+use clap::{App};
+
 fn main() {
-    println!("Hello, world!");
+    App::new("kvs")
+        .version("0.1.0")
+        .get_matches();
 }
