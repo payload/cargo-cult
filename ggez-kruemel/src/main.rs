@@ -61,7 +61,11 @@ type X = i32;
 type Y = i32;
 impl Cells {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, cells: vec![Cell::empty(); width * height] }
+        Self {
+            width,
+            height,
+            cells: vec![Cell::empty(); width * height],
+        }
     }
 
     pub fn tick(&mut self) {
@@ -91,10 +95,18 @@ impl Cells {
         str
     }
 
-    fn w(&self) -> X { self.width as X }
-    fn h(&self) -> Y { self.height as Y }
-    fn idx(&self, x: X, y: Y) -> usize { (y * self.w() + x) as usize }
-    pub fn cell(&self, x: X, y: Y) -> &Cell { &self.cells[self.idx(x, y)] }
+    fn w(&self) -> X {
+        self.width as X
+    }
+    fn h(&self) -> Y {
+        self.height as Y
+    }
+    fn idx(&self, x: X, y: Y) -> usize {
+        (y * self.w() + x) as usize
+    }
+    pub fn cell(&self, x: X, y: Y) -> &Cell {
+        &self.cells[self.idx(x, y)]
+    }
 
     pub fn paint(&mut self, x: X, y: Y, id: CellId) {
         let idx = self.idx(x, y);
@@ -108,7 +120,7 @@ impl Cells {
         let idx = self.idx(x, y);
         let id = self.cells[idx].id;
         match id {
-            Empty => {},
+            Empty => {}
             Sand => self.update_sand(x, y, idx),
         }
     }
@@ -120,7 +132,7 @@ impl Cells {
         let d_free = y + 1 < self.height as i32;
         let l_free = x > 0;
         let r_free = x + 1 < self.width as i32;
-        
+
         if d_free {
             if self.cells[d].id == Empty {
                 self.cells[idx].id = Empty;
@@ -226,14 +238,14 @@ impl MyGame {
         for y in 0..self.cells.h() {
             for x in 0..self.cells.w() {
                 match self.cells.cell(x, y).id {
-                    Empty => {},
+                    Empty => {}
                     Sand => {
                         builder.rectangle(
                             graphics::DrawMode::fill(),
                             graphics::Rect::new_i32(x * 4, y * 4, 4, 4),
                             (0.0, 0.0, 0.0, 1.0).into(),
                         );
-                    },
+                    }
                 }
             }
         }

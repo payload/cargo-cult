@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 /// That means that different keys, which are equal by Eq or change their equalness
 /// over time, might produce unintended behaviour.
 pub struct KvStore {
-    store: BTreeMap<String, String>
+    store: BTreeMap<String, String>,
 }
 
 impl KvStore {

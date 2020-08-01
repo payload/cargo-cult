@@ -1,4 +1,7 @@
-use clap::{Arg, SubCommand, AppSettings, app_from_crate, crate_name, crate_version, crate_authors, crate_description};
+use clap::{
+    app_from_crate, crate_authors, crate_description, crate_name, crate_version, AppSettings, Arg,
+    SubCommand,
+};
 
 fn main() {
     let app = app_from_crate!()
