@@ -1,16 +1,17 @@
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, SubCommand, AppSettings};
 
 fn main() {
-    let matches = App::new("kvs")
+    let app = App::new("kvs")
         .version("0.1.0")
+        .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(
             SubCommand::with_name("set")
                 .arg(Arg::with_name("key").index(1).required(true))
                 .arg(Arg::with_name("value").index(2).required(true)),
         )
         .subcommand(SubCommand::with_name("get").arg(Arg::with_name("key").index(1).required(true)))
-        .subcommand(SubCommand::with_name("rm").arg(Arg::with_name("key").index(1).required(true)))
-        .get_matches();
+        .subcommand(SubCommand::with_name("rm").arg(Arg::with_name("key").index(1).required(true)));
+    let matches = app.get_matches();
 
     let mut store = kvs::KvStore::new();
 
