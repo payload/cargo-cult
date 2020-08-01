@@ -14,6 +14,6 @@ impl KvStore {
     }
 
     pub fn remove(&mut self, _key: String) {
-        unimplemented!();
+        unimplemented!("unimplemented");
     }
 }

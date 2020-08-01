@@ -9,6 +9,7 @@ fn main() {
                 .arg(Arg::with_name("value").index(2).required(true)),
         )
         .subcommand(SubCommand::with_name("get").arg(Arg::with_name("key").index(1).required(true)))
+        .subcommand(SubCommand::with_name("rm").arg(Arg::with_name("key").index(1).required(true)))
         .get_matches();
 
     let mut store = kvs::KvStore::new();
@@ -22,5 +23,9 @@ fn main() {
         let key = m.value_of("key").unwrap().into();
 
         store.get(key);
+    } else if let Some(m) = matches.subcommand_matches("rm") {
+        let key = m.value_of("key").unwrap().into();
+
+        store.remove(key);
     }
 }
