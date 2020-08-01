@@ -1,8 +1,7 @@
-use clap::{App, Arg, SubCommand, AppSettings};
+use clap::{App, Arg, SubCommand, AppSettings, app_from_crate, crate_name, crate_version, crate_authors, crate_description};
 
 fn main() {
-    let app = App::new("kvs")
-        .version("0.1.0")
+    let app = app_from_crate!()
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(
             SubCommand::with_name("set")
