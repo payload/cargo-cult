@@ -5,6 +5,14 @@ authors = ["Gilbert Röhrbein"]
 edition = "2018"
 license = "MIT"
 
+[lib]
+doctest = false
+test = false
+
+[[bin]]
+name = "ggez-sandspiel"
+test = false
+
 [dependencies]
 rand = "0.7.3"
 gfx = "0.18.2"

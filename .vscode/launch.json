@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "kvs set foo bar",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/kvs",
+      "args": ["set", "foo", "bar"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
+    }
+  ]
+}
